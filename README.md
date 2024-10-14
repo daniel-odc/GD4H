@@ -26,7 +26,7 @@ L’exploitation de ces bases à des fins de croisement requiert une exploration
 
 ## **Documentation**
 
-> Documentation du code [ici](./code/front/code_documentation.md)
+> Documentation du code [ici](./code_documentation.md)
 
 ### **Installation**
 
