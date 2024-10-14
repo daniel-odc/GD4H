@@ -1,0 +1,65 @@
+/* ----------------------------------------------------------------------------
+* Custom style applied to markdown syntax
+------------------------------------------------------------------------------- */
+
+.reactMarkDownOdc {
+    /*background-color: rgba(245, 245, 245, 0.75);*/
+}
+
+.reactMarkDownOdc code {
+    background-color: #dfdfdf;
+}
+
+.reactMarkDownOdc table {
+    /*border: solid;*/
+    table-layout: fixed;
+    /*width: 900px;*/
+    max-width: 100%;
+}
+
+.reactMarkDownOdc table th {
+    text-align: left;
+    padding-bottom: 10px;
+}
+
+.reactMarkDownOdc table td {
+    border: 0px solid black;
+    /*width: 450px;*/
+    width: 50%;
+    overflow: auto;
+    padding-bottom: 10px;
+}
+
+.reactMarkDownOdc img {
+    display: flex;
+    max-width: 100%;
+}
+
+.reactMarkDownOdc h1 {
+    color: #93ac9d;
+    text-align: center;
+    font-size: 30px;
+}
+
+.reactMarkDownOdc h2 {
+    font-size: 22px;
+}
+
+.reactMarkDownOdc h3 {
+    color: #6b6b6b;
+    font-size: 18px;
+}
+
+.reactMarkDownOdc h4 {
+    color: #4e92c2;
+    font-size: 16px;
+}
+
+.reactMarkDownOdc h5 {
+    font-size: 14px;
+}
+
+.reactMarkDownOdc h6 {
+    font-size: 14px;
+}
+

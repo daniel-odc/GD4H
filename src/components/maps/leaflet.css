@@ -1,0 +1,10 @@
+
+/*  Leaflet style */
+
+.leaflet-container {
+  /*width: 300px;*/
+  height: 90vh;
+  max-height: 600px;
+  max-width: 900px;
+    /*overflow: hidden;*/
+}
