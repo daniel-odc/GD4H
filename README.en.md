@@ -20,7 +20,7 @@ Links :
 
 ## **Documentation**
 
-> Code documentation [here](./code/front/code_documentation.md)
+> Code documentation [here](./code_documentation.md)
 
 ## **Team**
 
