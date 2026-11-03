@@ -9,6 +9,7 @@ TO DO
 - change version in footer
 - change bug tracker link
 - change `A propos` page
+- update Github ODC with `git push origin main`
 
 Historique
 -------------
