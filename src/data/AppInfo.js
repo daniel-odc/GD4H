@@ -21,8 +21,8 @@ export const Links = {
 export const AppInfo = {
     name: "QualiGeoEnvi",
     version: {
-        num: "1.2",
-        date: '06/06/2023',
+        num: "1.3",
+        date: '03/11/2026',
     },
     language: 'fr',
     url: process.env.REACT_APP_BASE_APP_URL,
@@ -43,26 +43,6 @@ export const AppInfo = {
                 link: Links.about,
                 description: 'Documentation Page',
             },
-            // {
-            //     label: 'Col check DEV',
-            //     key: 'table',
-            //     icon: <TableOutlined />,
-            //     link: Links.table,
-            //     description: 'Table Page - for dev only',
-            // },
-            // {
-            //     label: 'Data check DEV',
-            //     key: 'check',
-            //     icon: <TableOutlined />,
-            //     link: Links.check,
-            //     description: 'Data Page - for dev only',
-            // },
-            // {
-            //     label: 'Tests DEV',
-            //     key: 'tests',
-            //     link: Links.tests,
-            //     description: 'Tests Page - for dev only',
-            // },
             {
                 label: <a href={Links.git} target={"_blank"}></a>,
                 key: 'git',

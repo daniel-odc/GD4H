@@ -1,13 +1,7 @@
 # Code pre-migration vers `Gitlab` INERIS
 
 TO DO
-- New [`Node` version](https://nodejs.org/en/download): 24.22.2
 - Update Gitlab GD4H to redirect to [INERIS Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi.git)
-- Move GIS layers (`communes.json` etc.) to cloud bucket:
-  - Add env variable `REACT_APP_BUCKET_GEODATA=https://storage.googleapis.com/public-bucket-odc-data/geodata/France/` and update code to use it instead of plain url
-  - change default to no zones loaded to files have time to load while user is uploading the csv file
-  - simplify geometries
-- change version in footer
 - Characters encoding dialog
 - Precise geocoding implementation
 - change bug tracker link
