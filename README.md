@@ -1,5 +1,6 @@
 # Code pre-migration vers `Gitlab` INERIS
 
+- New [`Node` version](https://nodejs.org/en/download): 24.22.2
 
 Historique
 -------------
