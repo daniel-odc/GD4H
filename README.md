@@ -1,6 +1,11 @@
 # Code pre-migration vers `Gitlab` INERIS
 
+TO DO
 - New [`Node` version](https://nodejs.org/en/download): 24.22.2
+- Update Gitlab GD4H to redirect to [INERIS Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi.git)
+- Add CartoDB API key 
+- Test React 19+ antd6
+- Move GIS layers (`communes.json` etc.) to cloud bucket
 
 Historique
 -------------

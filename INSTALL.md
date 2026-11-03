@@ -26,18 +26,18 @@
 
 Main libraries (see `package.json` for versions):
 
-- UI: `react`, `antd`, `@ant-design/icons`, `react-router`
-- Data: `danfojs`, `axios`
+- UI: `react` 18, `antd` 5, `react-router-dom`
+- Data: `danfojs` (pinned to 1.1.2: version 1.2.0 forces the `,` CSV delimiter, so `;` files are no longer detected), `axios`
 - Maps & geo: `leaflet`, `react-leaflet`, `@turf/turf`, `proj4`, `geolib`
 - Charts: `recharts`
 - Markdown: `react-markdown`, `remark-gfm`
 
 ## Environment variables
 
-Vite only exposes variables prefixed with `VITE_` (in a `.env` file at the project root), e.g.:
+Variables prefixed with `REACT_APP_` in a `.env` file at the project root are available as `process.env.REACT_APP_*` (mapped in `vite.config.js`), e.g.:
 
 ````shell
-VITE_BASE_APP_URL=https://qualigeoenvi.fr
+REACT_APP_BASE_APP_URL=https://qualigeoenvi.fr
 ````
 
 ## Production
