@@ -47,9 +47,9 @@ export default function AboutPage() {
     return (
         <Layout style={layoutStyle}>
             <Content style={contentStyle}>
-                <div style={divStyle}>
+                {/*  className to apply custom styles from './css/markdown.module.css' (react-markdown >= 9 has no className prop)  */}
+                <div style={divStyle} className={style.reactMarkDownOdc}>
                     <ReactMarkdown
-                        className={style.reactMarkDownOdc}  /*  to apply custom styles from './css/markdown.module.css'  */
                         children={mk}
                         remarkPlugins={[
                             remarkGfm,  /*  for GitHub style compatibility  */
