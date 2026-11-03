@@ -13,7 +13,7 @@
 * -------------------------------------------------- */
 
 import React, {useState, useEffect} from "react";
-import {Alert, Row, Col, Layout, Button, Space, Slider, InputNumber, Radio, Select} from "antd";
+import {Alert, Row, Col, Layout, Button, Space, Slider, InputNumber, Radio, Select, Checkbox} from "antd";
 import {MapContainer, TileLayer, Marker, Polygon, Tooltip, GeoJSON} from 'react-leaflet';
 import './leaflet.css';
 import { booleanPointInPolygon } from '@turf/turf';
@@ -25,9 +25,26 @@ import {MkDoc} from "../doc/MkDoc";
 import read_me from "../../i18n/fr/read_me_distrgeo.md";  /*  Map tab instructions  */
 
 
-import regions from './../../data/regions.json'
-import departements from './../../data/departements.json'
-import communes from "./../../data/communes.json"
+/*  GIS layers (GeoJSON) stored in a cloud bucket (folder URL set in .env.local), loaded once and kept in memory:  */
+const GEODATA_URL = (process.env.REACT_APP_BUCKET_GEODATA || '').replace(/\/+$/, '');
+const GEO_LAYERS = ['regions', 'departements', 'communes'];
+const emptyGeoLayers = {loaded: false, error: null, regions: {features: []}, departements: {features: []}, communes: {features: []}};
+let geoLayersPromise = null;
+const loadGeoLayers = () => {
+    if (!GEODATA_URL) return Promise.reject(new Error('REACT_APP_BUCKET_GEODATA non défini dans .env.local'));
+    if (!geoLayersPromise) {
+        geoLayersPromise = Promise.all(GEO_LAYERS.map(async (name) => {
+            const res = await fetch(`${GEODATA_URL}/${name}.json`);
+            if (!res.ok) throw new Error(`${name}.json: HTTP ${res.status}`);
+            return res.json();
+        })).then(([regions, departements, communes]) => ({loaded: true, error: null, regions, departements, communes}))
+            .catch((error) => {
+                geoLayersPromise = null;    /*  retry on next mount */
+                throw error;
+            });
+    }
+    return geoLayersPromise;
+};
 
 import Messages from './Message'; // Import the Messages component
 import './popup.css'; // Import the CSS file for the popup
@@ -158,6 +175,7 @@ export default function DistrGeo(props) {
     const [colCoord, setColCoord] = useState(listColCoord[0]);
     const [boundingBox, setBoundingBox] = useState(null);   /*  coordinates bounding box    */
     const [selectedValue, setSelectedValue] = useState('regions');
+    const [showZones, setShowZones] = useState(false);     /*  zones (GeoJSON layers) displayed on the map  */
     const [showMessages, setShowMessages] = useState(false);
     const [verificationMessages, setVerificationMessages] = useState([]);
     const [Page , setPage] = useState("carte")
@@ -185,12 +203,29 @@ export default function DistrGeo(props) {
 
     const [UniqueListeAnnee, setUniqueListeAnnee] = useState([]);
 
+    /*  GIS layers loaded from the cloud bucket:   */
+    const [geoLayers, setGeoLayers] = useState(emptyGeoLayers);
+    const {regions, departements, communes} = geoLayers;
+    useEffect(() => {
+        loadGeoLayers()
+            .then(setGeoLayers)
+            .catch((error) => {
+                console.error('Erreur de chargement des couches géographiques: ', error);
+                setGeoLayers({...emptyGeoLayers, error: error.message});
+            });
+    }, []);
+
     const onChange = (newValue) => {
         setInputValue(newValue);                /* la fnction qui permet de changer le maximum de makers a afficher   */
       };
       
     const btnFrontiere  = (e) => {
         setSelectedValue(e.target.value);                                 /* cette fonction permet de change les limites geographique   */
+    }
+
+    const toggleZones = (e) => {
+        setShowZones(e.target.checked);
+        if (e.target.checked) setSelectedValue('regions');               /*  Régions by default when the zones are displayed */
     }
 
     const btnPage = (e) => {
@@ -339,8 +374,8 @@ export default function DistrGeo(props) {
     };
     
     useEffect(() => {
-        handleVerification();
-    }, []);
+        if (geoLayers.loaded) handleVerification();
+    }, [geoLayers]);
 
 
 
@@ -527,6 +562,7 @@ export default function DistrGeo(props) {
 
 
     useEffect(() => {
+        if (!geoLayers.loaded) return;
         // Initialisation des compteurs
         const regionCountsInit = {};
         const departementCountsInit = {};
@@ -566,7 +602,7 @@ export default function DistrGeo(props) {
     
         setRegionCounts(regionCountsInit);
         setDepartementCounts(departementCountsInit);
-    }, []);
+    }, [geoLayers]);
     
 
 
@@ -594,6 +630,14 @@ export default function DistrGeo(props) {
                 <Alert
                     title="Pas de coordonnées à afficher sur la carte. Si vous souhaitez convertir des adresses en coordonnées, veuillez vous rendre sur l'onglet 'Conversions géographiques'"
                     type="warning" closable/>
+            </Col>}
+
+            {/*// ------------------------ GIS layers loading status ------------------------ */}
+            {(!geoLayers.loaded && !geoLayers.error) && <Col span={24}>
+                <Alert title="Chargement des contours géographiques (régions, départements, communes)..." type="info"/>
+            </Col>}
+            {geoLayers.error && <Col span={24}>
+                <Alert title={`Les contours géographiques n'ont pas pu être chargés (${geoLayers.error}) : la vérification spatiale n'est pas disponible.`} type="error"/>
             </Col>}
 
             {/*// ------------------------ Read me -------------------------------------------- */}
@@ -633,9 +677,10 @@ export default function DistrGeo(props) {
                     }
 
                     {/* Affichage des données GeoJSON */}
-                    {selectedValue === "regions" && <GeoJSON data={regions.features} onEachFeature={onEachCountry} />}
-                    {selectedValue === "departements" && <GeoJSON data={departements.features} onEachFeature={onEachCountry} />}
-                    {selectedValue === "communes" && <GeoJSON data={communes.features} onEachFeature={onEachCountry} />}
+                    {/*  GeoJSON only reads its data on creation: render once the layers are loaded  */}
+                    {showZones && geoLayers.loaded && selectedValue === "regions" && <GeoJSON data={regions.features} onEachFeature={onEachCountry} />}
+                    {showZones && geoLayers.loaded && selectedValue === "departements" && <GeoJSON data={departements.features} onEachFeature={onEachCountry} />}
+                    {showZones && geoLayers.loaded && selectedValue === "communes" && <GeoJSON data={communes.features} onEachFeature={onEachCountry} />}
 
                     {/* Bounding box:    */}
                     {/* {boundingBox && <Polygon positions={boundingBox}/>} */}
@@ -814,8 +859,8 @@ export default function DistrGeo(props) {
 
             <Row justify="space-between" align="top">
                 <Col>
-                    <h3>Affichage des zones :</h3>
-                        <Radio.Group onChange={btnFrontiere} value={selectedValue}>
+                    <h3><Checkbox checked={showZones} onChange={toggleZones} style={{marginRight: 8}}/>Affichage des zones :</h3>
+                        <Radio.Group onChange={btnFrontiere} value={selectedValue} disabled={!showZones}>
                             <Space size="small"> 
                                 <Radio.Button value="regions">Régions</Radio.Button>
                                 <Radio.Button value="departements">Départements</Radio.Button>

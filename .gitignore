@@ -12,6 +12,9 @@
 # production
 /build
 
+# GIS layers prepared for upload to the cloud bucket
+/geodata
+
 # misc
 .DS_Store
 .env

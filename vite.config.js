@@ -21,7 +21,7 @@ export default defineConfig(({command, mode}) => {
         Object.entries(env).map(([key, val]) => [`process.env.${key}`, JSON.stringify(val)])
     );
     /*  Variables used in the code but not set in .env must still be replaced (process is not defined in the browser):  */
-    for (const key of ['REACT_APP_BASE_APP_URL', 'REACT_APP_CARTO_API_KEY']) {
+    for (const key of ['REACT_APP_BASE_APP_URL', 'REACT_APP_CARTO_API_KEY', 'REACT_APP_BUCKET_GEODATA']) {
         define[`process.env.${key}`] ??= 'undefined';
     }
 

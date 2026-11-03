@@ -50,6 +50,9 @@ REACT_APP_BASE_APP_URL=https://qualigeoenvi.fr
   Without it, the map falls back to OpenStreetMap tiles.
 - The values are read at build time and embedded in the JavaScript sent to the browser: they are public. Restrict the
   CARTO key to the app's domains in the CARTO dashboard (CARTO requires a separate key for `localhost`).
+- `REACT_APP_BUCKET_GEODATA`: folder URL of the GIS layers `regions.json`, `departements.json` and
+  `communes.json`, loaded by the map at runtime, e.g. `https://storage.googleapis.com/public-bucket-odc-data/geodata/France/`
+  (the bucket must allow public read and CORS `GET` from the app's domains).
 - Restart `npm start` after changing `.env.local`.
 
 ## Production
