@@ -5,10 +5,13 @@ TO DO
 - Update Gitlab GD4H to redirect to [INERIS Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi.git)
 - Add CartoDB API key 
 - Test React 19+ antd6
+- Characters encoding dialog
+- Precise geocoding implementation
 - Move GIS layers (`communes.json` etc.) to cloud bucket
 - change version in footer
 - change bug tracker link
 - change `A propos` page
+- see if bug trackers are public on INERIS gitlab
 - update Github ODC with `git push origin main`
 
 Historique

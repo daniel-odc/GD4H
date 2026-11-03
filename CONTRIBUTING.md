@@ -5,11 +5,11 @@ Thank you for your interest in contributing to our project! We welcome all contr
 To ensure that your contributions can be accepted quickly and easily, please follow these guidelines.
 
 ## Reporting Issues
-If you find a bug or have a suggestion for a feature, you can open a new [issue](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/issues/new).
+If you find a bug or have a suggestion for a feature, you can open a new [issue](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/issues/new).
 
 When opening an issue:
 
-> 1. Check the [issues](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/issues) and [pull requests](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/merge_requests) to make sure that the feature/bug has not already been addressed, or is being worked upon.
+> 1. Check the [issues](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/issues) and [pull requests](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/merge_requests) to make sure that the feature/bug has not already been addressed, or is being worked upon.
 > 2. Provide as much detail as possible about the issue, including steps to reproduce the issue if applicable.
 
 ## Submitting Pull Requests
@@ -17,7 +17,7 @@ We welcome contributions to this repository.
   
 If you want to contribute a feature or fix a bug, please follow these steps:
 
-> 1. Check the [issues](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/issues) and [pull requests](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/merge_requests) to make sure that the feature/bug has not already been addressed, or is being worked upon.
+> 1. Check the [issues](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/issues) and [pull requests](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/merge_requests) to make sure that the feature/bug has not already been addressed, or is being worked upon.
 > 2. Fork the repository and create a new branch for your changes.
 > 3. Make the changes in your fork.
 > 4. ***Test your changes*** thoroughly to make sure they are working as expected.

@@ -12,7 +12,7 @@ Elle permet:
 
 Sur chaque onlget, une section `Instructions` donne les indications à suivre.
 
-Pour toute remarque ou demande de renseignements, vous pouvez les adresser sur le [Gitlab](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/issues) du projet.
+Pour toute remarque ou demande de renseignements, vous pouvez les adresser sur le [Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/issues) du projet.
 
 *Restrictions:*
 - Seules les données tabulaires sont traitées (lignes et colonnes) 
@@ -22,4 +22,4 @@ Pour toute remarque ou demande de renseignements, vous pouvez les adresser sur l
 - L'application ne gère pour l'instant que les fichiers **CSV**.
 - L'application ne gère pas la multiplicité des systèmes de coordonnées géographiques dans le jeu de données : privilégier des jeux de données avec un système de coordonnées géographiques unique, de préférence WGS84.
 
-*Note:* Le code permettant de créer cette application est 100% open-source et disponible également sur le [Gitlab](https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/tree/main/) du projet.
+*Note:* Le code permettant de créer cette application est 100% open-source et disponible également sur le [Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/tree/main/) du projet.

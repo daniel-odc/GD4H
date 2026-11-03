@@ -644,7 +644,7 @@ export default function ProjGeo(props) {
                 {/*// ------------------------ Content -------------------------------------------------- */}
                 <Row align="middle" gutter={gutter} style={rowStyle}>             
                     {loadingVerify || loadingProj ? (
-                        <Spin tip={`Chargement des données...`} size="large">
+                        <Spin description={`Chargement des données...`} size="large">
                             <div style={{padding: '50px', borderRadius: '5px', width: 150, height: 150}}></div>
                         </Spin>
                     ) : (

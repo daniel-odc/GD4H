@@ -14,8 +14,8 @@ export const Links = {
     table: '/table',  /* where headers are checked  */
     check: '/check',  /* where data is checked      */
     tests: '/tests',    /* for tests only   */
-    git: "https://gitlab.com/data-challenge-gd4h/qualigeoenvi",
-    git_issues: "https://gitlab.com/data-challenge-gd4h/qualigeoenvi/-/issues",
+    git: "https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi",
+    git_issues: "https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi/-/issues",
 };
 
 export const AppInfo = {

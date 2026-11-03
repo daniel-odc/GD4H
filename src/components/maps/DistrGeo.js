@@ -57,18 +57,25 @@ const loadDfTest = async () => {
 const listColCoordDef = [[47.43, 2.36], [49.43, 4.36], [48.43, 3.36]]
 
 /*  Check background providers here: https://leaflet-extras.github.io/leaflet-providers/preview/    */
+/*  CARTO basemaps API key, set in .env.local (free key: https://carto.com/basemaps/apikey):  */
+const cartoApiKey = process.env.REACT_APP_CARTO_API_KEY;
 const listTileUrl = [
     "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",                   /*  default OSM */
     'https://{s}.tile.jawg.io/jawg-light/{z}/{x}/{y}{r}.png',
     'https://stamen-tiles-{s}.a.ssl.fastly.net/toner/{z}/{x}/{y}{r}.png',   /*    stamen  */
     'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png', /*  light   */
-    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',          /*  Positron*/
+    `https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}.png?key=${cartoApiKey}`,  /*  Positron (CARTO API key required)*/
 ];
-const tileUrl = listTileUrl[listTileUrl.length - 1];
+/*  CARTO Positron if an API key is set, OSM otherwise (CARTO tiles only show "API KEY REQUIRED" without key): */
+const tileUrl = cartoApiKey ? listTileUrl[listTileUrl.length - 1] : listTileUrl[0];
+const tileAttribution = cartoApiKey ?
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attribution/">CARTO</a>' :
+    '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const zoomDef = 5;          /*  Show full Earth by default  */
 const minZoomDef = 3;       /* Show more than full Earth    */
-const maxZoomDef = 15;      /* Don't allow too deep zooms   */
+const maxZoomDef = 20;      /* Don't allow too deep zooms   */
+const maxNativeZoomDef = cartoApiKey ? 18 : 19;  /* Deepest tiles served (CARTO: 18, OSM: 19), upscaled beyond  */
 // const maxNbMk = 100;        /*  max number of markers to display    */
 const centerDef = [47.43, 2.36];
 const colTooltip = 'tooltip_qge';   /*  tmp column for diplaying the record information on the map  */
@@ -585,7 +592,7 @@ export default function DistrGeo(props) {
             {/*// ------------------------ Alert message if no markers ------------------------ */}
             {(!markers) && <Col span={24}>
                 <Alert
-                    message="Pas de coordonnées à afficher sur la carte. Si vous souhaitez convertir des adresses en coordonnées, veuillez vous rendre sur l'onglet 'Conversions géographiques'"
+                    title="Pas de coordonnées à afficher sur la carte. Si vous souhaitez convertir des adresses en coordonnées, veuillez vous rendre sur l'onglet 'Conversions géographiques'"
                     type="warning" closable/>
             </Col>}
 
@@ -604,8 +611,10 @@ export default function DistrGeo(props) {
                     zoomControl={false}
                 >
                     <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        attribution={tileAttribution}
                         url={tileUrl}
+                        maxZoom={maxZoomDef}
+                        maxNativeZoom={maxNativeZoomDef}
                     />
 
                     {/* Markers:  */}

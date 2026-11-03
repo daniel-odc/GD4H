@@ -3,7 +3,7 @@
 *
 * -------------------------------------------------------- */
 import {useEffect, useState} from "react";
-import {useNavigate, useLocation} from "react-router-dom";
+import {useNavigate, useLocation} from "react-router";
 import {Layout, Row, Col, Button, Table, Select, Checkbox} from 'antd';
 
 /*  Js generic functions:  */
@@ -186,7 +186,7 @@ export default function TablePage() {
                 return (
                     <Select
                         defaultValue={text}
-                        dropdownStyle={{color: "red"}}
+                        styles={{popup: {root: {color: "red"}}}}
                         style={{
                             width: 200,
                         }}
@@ -250,7 +250,7 @@ export default function TablePage() {
                         loading={loading}
                         rowKey={'key'}
                         size="small"
-                        pagination={{position: ['none', 'none'], defaultPageSize: 255}}  /*  assumes no more than 250 fields...  */
+                        pagination={{placement: ['none'], defaultPageSize: 255}}  /*  assumes no more than 250 fields...  */
                     />
                 </Row>
             </Content>

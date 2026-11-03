@@ -300,7 +300,7 @@ export default function OpGeo(props) {
 
                     {/*// ------------------------ Alert message if no address for conversion ---------- */}
                     {disableApi && <Col span={24}>
-                        <Alert message="Pas d'adresses dans la donnée à convertir en coordonnées..." type="warning" closable/>
+                        <Alert title="Pas d'adresses dans la donnée à convertir en coordonnées..." type="warning" closable/>
                     </Col>}
 
                 </Row>
@@ -311,7 +311,7 @@ export default function OpGeo(props) {
                 {/*// ------------------------ Alert message for file extension error ----------------- */}
                 {apiWarning && <Row align="left" gutter={gutter} style={rowStyle}>
                     <Alert 
-                        message={apiWarning} 
+                        title={apiWarning} 
                         type="warning" 
                         closable 
                         onClose={() => setApiWarning(null)}
@@ -322,7 +322,7 @@ export default function OpGeo(props) {
                 <Row align="middle" gutter={gutter} style={rowStyle}>
                     {/* -------------------- Loading spin ---------------------------------- */}
                     {loadingApi &&
-                        <Spin tip={`Conversion ${nbAddr.toLocaleString()} adresses en cours`} size="large">
+                        <Spin description={`Conversion ${nbAddr.toLocaleString()} adresses en cours`} size="large">
                             <div style={{padding: '50px', borderRadius: '5px', width: 150, height: 150}}></div>
                         </Spin>}
 

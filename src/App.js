@@ -1,5 +1,6 @@
 import React from 'react';
-import {BrowserRouter, Routes, Route} from 'react-router-dom';
+import {BrowserRouter, Routes, Route} from 'react-router';
+import {Layout} from 'antd';
 
 /* Project Components:  */
 import HeaderMenuOdc from "./components/layout/HeaderOdc";
@@ -28,6 +29,8 @@ function App() {
     return (
 
         <BrowserRouter>
+            {/*  antd 6: Header/Footer styles (CSS variables) are only defined inside a Layout  */}
+            <Layout style={{background: 'transparent'}}>
 
             <HeaderMenuOdc items={headerItems} logo={logo}/>
 
@@ -67,6 +70,7 @@ function App() {
 
             <FooterOdc/>
 
+            </Layout>
         </BrowserRouter>
 
     );

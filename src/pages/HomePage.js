@@ -1,5 +1,5 @@
 import React, {useState, useEffect} from "react";
-import {useNavigate} from "react-router-dom";
+import {useNavigate} from "react-router";
 import {Layout, Row, Col, Button, Upload, Alert, Spin} from 'antd';
 import {UploadOutlined} from '@ant-design/icons';
 // import {toJSON} from "danfojs";
@@ -153,7 +153,7 @@ export default function HomePage() {
 
                 {/*// ------------------------ Alert message for file extension error ----------------- */}
                 {loadError && <Row align="left" gutter={gutter} style={rowStyle}>
-                    <Alert message={EXT_ERROR_MSG} type="warning" closable />
+                    <Alert title={EXT_ERROR_MSG} type="warning" closable />
                 </Row>}
 
                 {/*// ------------------------ Read me ------------------------------------------------ */}
@@ -163,7 +163,7 @@ export default function HomePage() {
 
                 {/*// ------------------------ Loading info ------------------------------------------- */}
                 {loading &&
-                    <Spin tip={`Chargement ${fileList[0].name} en cours...`} size="large">
+                    <Spin description={`Chargement ${fileList[0].name} en cours...`} size="large">
                         <div style={{padding: '50px', borderRadius: '5px', width: 150, height: 150}}></div>
                     </Spin>}
 
@@ -177,7 +177,7 @@ export default function HomePage() {
                     <TableOdc
                         df={tblDf}
                         rowKey={ROW_KEY}
-                        pagination={{position: ['none', 'none']}}
+                        pagination={{placement: ['none']}}
                     />
                 </Row>
             </Content>

@@ -21,7 +21,7 @@ export default function TableOdc(props) {
     const df = props.df;
     const maxRows = props.maxRows? props.maxRows: null; /*  max number of rows to display in the table  */
     const rowKey = props.rowKey? props.rowKey: 'key';
-    const pagination = props.pagination? props.pagination: {position: ['none', 'none']};
+    const pagination = props.pagination? props.pagination: {placement: ['none']};
     /*  render function for columns ==> to be defined in the columns attribute:
     *   render_func = {attr: () => {...}}    */
     const render_func = props.render_func? props.render_func: null;
