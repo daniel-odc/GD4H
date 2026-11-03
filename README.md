@@ -6,6 +6,9 @@ TO DO
 - Add CartoDB API key 
 - Test React 19+ antd6
 - Move GIS layers (`communes.json` etc.) to cloud bucket
+- change version in footer
+- change bug tracker link
+- change `A propos` page
 
 Historique
 -------------
