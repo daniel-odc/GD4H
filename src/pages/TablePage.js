@@ -10,7 +10,7 @@ import {Layout, Row, Col, Button, Table, Select, Checkbox} from 'antd';
 import {formatNumber, objToDataframe, } from "../generic_js/generic";  //startTime, endTime
 
 /*  Js functions project-specific:  */
-import {KEY_DATE, KEY_COORD, KEY_ADDR, KEY_OTHER, STR_FIELDS} from "../generic_js/fieldsDetection";
+import {KEY_DATE, KEY_COORD, KEY_ADDR, KEY_PROJ, KEY_OTHER, STR_FIELDS} from "../generic_js/fieldsDetection";
 import {analyseHeaders} from "../generic_js/fieldsDetection";
 
 /*  Project data:   */
@@ -34,7 +34,7 @@ const contentStyle = {padding: 10, margin: 0, minHeight: "calc(100vh - 64px - 48
 const rowStyle = {padding: 10, marginBottom: 10, backgroundColor: 'white', textAlign: 'left'};
 const gutter = [16, 16]; /* horizontal and vertical space between grid elements */
 
-/*  Combo options (defined in fieldsDetection.js   */
+/*  Combo options (defined in fieldsDetection.js)   */
 const comboOptions = [
     {
         value: KEY_DATE,                /*  'date'  */
@@ -47,6 +47,10 @@ const comboOptions = [
     {
         value: KEY_ADDR,                /*  'addr'      */
         label: STR_FIELDS[KEY_ADDR],    /*  'Adresse'   */
+    },
+    {
+        value: KEY_PROJ,                /*  'proj'      */
+        label: STR_FIELDS[KEY_PROJ],    /*  'Projection'   */
     },
     {
         value: KEY_OTHER,               /*  'other'     */
@@ -170,7 +174,7 @@ export default function TablePage() {
             render: (col, record) => {
                 return (
                     <span>{formatNumber(1-record['pc_na'], 1, ' ', true)}</span>
-                )
+                )   
             },
         },
         {

@@ -13,9 +13,11 @@
 * -------------------------------------------------- */
 
 import React, {useState, useEffect} from "react";
-import {Alert, Row, Col, Layout} from "antd";
-import {MapContainer, TileLayer, Marker, Polygon, Tooltip} from 'react-leaflet';
+import {Alert, Row, Col, Layout, Button, Space, Slider, InputNumber, Radio, Select} from "antd";
+import {MapContainer, TileLayer, Marker, Polygon, Tooltip, GeoJSON} from 'react-leaflet';
 import './leaflet.css';
+import { booleanPointInPolygon } from '@turf/turf';
+
 
 /*  Project components:  */
 import {getMinMaxArray, isNull, objToDataframe} from "../../generic_js/generic";
@@ -23,10 +25,30 @@ import {MkDoc} from "../doc/MkDoc";
 import read_me from "../../i18n/fr/read_me_distrgeo.md";  /*  Map tab instructions  */
 
 
+import regions from './../../data/regions.json'
+import departements from './../../data/departements.json'
+import communes from "./../../data/communes.json"
+
+import Messages from './Message'; // Import the Messages component
+import './popup.css'; // Import the CSS file for the popup
+
+
+import {SimpleRadarChart, SimpleRadarChart2, SimpleRadarChart3 } from "./../../Graphe/SimpleRadarChart";
+import {SimpleBarChart, SimpleBarChart2, SimpleBarChart3} from "./../../Graphe/SimpleBarChart";
+import {PieChartWithCustomizedLabel, PieChartWithCustomizedLabel2, PieChartWithCustomizedLabel3} from "./../../Graphe/PieChartWithCustomizedLabel"
+
+import "./../../Graphe/styles.css"
+import "./../../Graphe/styles2.css"
+import "./../../Graphe/styles3.css"
+
+
+
 /*  for tests only  */
 import {concat, readCSV, toCSV} from "danfojs";
 
+const rowStyle = {padding: 10, marginBottom: 10, marginTop: 10 ,backgroundColor: 'white', textAlign: 'left'}; 
 
+const gutter = [16, 16];
 /*  Def values for debugging    */
 const loadDfTest = async () => {
     const dfTmp = await readCSV('https://storage.googleapis.com/bucket-test-odc/areas.csv');
@@ -44,10 +66,10 @@ const listTileUrl = [
 ];
 const tileUrl = listTileUrl[listTileUrl.length - 1];
 
-const zoomDef = 1;          /*  Show full Earth by default  */
-const minZoomDef = 0;       /* Show more than full Earth    */
+const zoomDef = 5;          /*  Show full Earth by default  */
+const minZoomDef = 3;       /* Show more than full Earth    */
 const maxZoomDef = 15;      /* Don't allow too deep zooms   */
-const maxNbMk = 100;        /*  max number of markers to display    */
+// const maxNbMk = 100;        /*  max number of markers to display    */
 const centerDef = [47.43, 2.36];
 const colTooltip = 'tooltip_qge';   /*  tmp column for diplaying the record information on the map  */
 // const iconDef = new Icon({
@@ -111,6 +133,15 @@ const TooltipFormatted = (props) => {
     )
 }
 
+
+const getMonthName = (monthNumber) => {
+    const monthNames = [
+        "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
+        "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
+    ];
+    return monthNames[monthNumber - 1];
+};
+
 export default function DistrGeo(props) {
     let df = props.df ? props.df : null;
     const listColCoord = props.listColCoord ? props.listColCoord : listColCoordDef;    /*  [['longitude', 'latitude'], [other x, y]]      */
@@ -119,10 +150,292 @@ export default function DistrGeo(props) {
     const [markers, setMarkers] = useState(null);
     const [colCoord, setColCoord] = useState(listColCoord[0]);
     const [boundingBox, setBoundingBox] = useState(null);   /*  coordinates bounding box    */
+    const [selectedValue, setSelectedValue] = useState('regions');
+    const [showMessages, setShowMessages] = useState(false);
+    const [verificationMessages, setVerificationMessages] = useState([]);
+    const [Page , setPage] = useState("carte")
+
+    const [regionCounts, setRegionCounts] = useState({});
+    const [departementCounts, setDepartementCounts] = useState({});
+    const [isBerSelected, setIsBerSelected] = useState(true);
+    const [currentIndex, setCurrentIndex] = useState(0);
 
     const colX = colCoord[0];
     const colY = colCoord[1];
     // console.log('col X, col Y: ', colX, colY, isNull(colX), isNull(colY), (!isNull(colX) && !isNull(colY)));
+
+    const [inputValue, setInputValue] = useState(1);  /*  max number of markers to display    */
+
+
+    const [verificationMessages2, setVerificationMessages2] = useState([]);
+    const [showMessages2, setShowMessages2] = useState(false);
+    const [dataStructureValid, setDataStructureValid] = useState(true);
+    const [occurrencesAnnee, setOccurrencesAnnee] = useState({});                                                   /*verification temporel */
+    const [occurrencesMois, setOccurrencesMois] = useState({});
+    const [occurrencesJours, setOccurrencesJours] = useState({});
+    const [selectedYear, setSelectedYear] = useState("ALL");
+    const [selectedMonth, setSelectedMonth] = useState(undefined);
+
+    const [UniqueListeAnnee, setUniqueListeAnnee] = useState([]);
+
+    const onChange = (newValue) => {
+        setInputValue(newValue);                /* la fnction qui permet de changer le maximum de makers a afficher   */
+      };
+      
+    const btnFrontiere  = (e) => {
+        setSelectedValue(e.target.value);                                 /* cette fonction permet de change les limites geographique   */
+    }
+
+    const btnPage = (e) => {
+        setPage(e.target.value);
+    };
+
+    const handleToggle = (e) => {
+        setIsBerSelected(e.target.value === 'regions');
+    };
+
+    const handleNext = () => {
+        setCurrentIndex((prevIndex) => (prevIndex + 1) % 3);
+      };
+    
+    const handlePrevious = () => {
+        setCurrentIndex((prevIndex) => (prevIndex - 1 + 3) % 3);
+    };
+
+
+
+    const funct_rename = (str) => {
+        const corrections = {
+          "�tablissement": "établissement",
+          "r�gion": "région",
+          "d�partement": "département",                         /* cette fonction permet de unifier les cles */
+          "code insee": "codeInsee",
+          "longitude wgs84": "longitude",
+          "latitude wgs84": "latitude",
+        };
+      
+        return corrections[str] || str;
+      };
+      
+    const createJson = (df) => {
+        const lCol = df["$columns"].map(col => funct_rename(col));
+        const data = df["$data"];
+      
+        // Use an object to check for duplicates
+        const uniqueEntries = {};
+      
+        const formattedData = data.map(row => {
+          let obj = {};
+          lCol.forEach((colName, index) => {                                                                     /* cette fonction permet de recuperer les donne  transformer en json */
+
+            obj[colName] = row[index];
+          });
+      
+          // Use "code etablissement" as a unique key to check for duplicates
+          const key = obj['code etablissement'];
+          if (!uniqueEntries[key]) {
+            uniqueEntries[key] = obj;
+          }
+      
+          return obj;
+        });
+      
+        // Return only unique values
+        return Object.values(uniqueEntries);
+      };
+
+    const createJson2 = (df) => {
+        const lCol = df["$columns"].map(col => funct_rename(col));
+        const data = df["$data"];
+      
+        const formattedData = data.map(row => {
+          let obj = {};
+          lCol.forEach((colName, index) => {
+            obj[colName] = row[index];
+          });
+          return obj;
+        });
+      
+        return formattedData;
+      };
+      
+      
+     
+    const maj = (str) => {
+        if (typeof str !== 'string') {
+            console.warn('maj(): valeur invalide reçue :', str);
+            return '';
+        }
+        const norm = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        const replacedStr = norm.replace(/-/g, ' ');
+        const capitalizedStr = replacedStr.toUpperCase();
+        return capitalizedStr;
+    }
+
+    const transformAndExtract = (input) => {
+        // Convert the input to a string
+        const str = input.toString();
+        
+        // Extract the first two characters
+        const result = str.substring(0, 2);
+        
+
+        return result;
+    }
+
+    const onEachCountry = (feature, layer) => {
+        if (feature.properties && feature.properties.nom) {
+            layer.bindPopup(feature.properties.nom);
+        }
+    };
+
+
+    const data = createJson(df);  /*without duplicates*/
+    const data2 = createJson2(df);  /* with duplicates */
+
+
+    // console.log("les données ",data)
+    // console.log("les données2 : ",data2)
+
+    const handleVerification = () => {
+        const messages = [];
+    
+        data.forEach((item, i) => {
+            // Retrieving polygons corresponding to the marker
+            const regionPolygon = regions.features.find(region => maj(region.properties.nom) === maj(item.region));
+            const departementPolygon = departements.features.find(dept => maj(dept.properties.nom) === maj(item.departement)) && departements.features.find(dept => (dept.properties.code) === transformAndExtract(item.codeInsee));
+            const communePolygon = communes.features.find(comm => parseInt(comm.properties.code) === item.codeInsee);
+    
+            const markerInsideRegion = regionPolygon ? booleanPointInPolygon([item.longitude, item.latitude], regionPolygon.geometry) : false;
+            const markerInsideDepartement = departementPolygon ? booleanPointInPolygon([item.longitude, item.latitude], departementPolygon.geometry) : false;
+            const markerInsideCommune = communePolygon ? booleanPointInPolygon([item.longitude, item.latitude], communePolygon.geometry) : false;
+    
+            if (!markerInsideRegion) {
+                const correctRegion = regions.features.find(region => booleanPointInPolygon([item.longitude, item.latitude], region.geometry));
+                messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${item.latitude}, ${item.longitude}) est indiquée dans la région ${correctRegion ? correctRegion.properties.nom : 'région inconnue'} au lieu de ${item.region}.`);
+            }
+            if (!markerInsideDepartement) {
+                const correctDepartement = departements.features.find(dept => booleanPointInPolygon([item.longitude, item.latitude], dept.geometry));
+                messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${item.latitude}, ${item.longitude}) est indiquée dans le département ${correctDepartement ? correctDepartement.properties.nom : 'département inconnu'} au lieu de ${item.departement}.`);
+            }
+            if (!markerInsideCommune) {
+                const correctCommune = communes.features.find(comm => booleanPointInPolygon([item.longitude, item.latitude], comm.geometry));
+                messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${item.latitude}, ${item.longitude}) est indiquée dans la commune ${correctCommune ? correctCommune.properties.nom : 'commune inconnue'} au lieu de ${item.commune}.`);
+            }
+        });
+    
+        if (messages.length === 0) {
+            setVerificationMessages(["Toutes les coordonnées saisies par l'utilisateur correspondent à leur emplacement géographique."]);
+        } else {
+            setVerificationMessages(messages);
+        }
+    };
+    
+    useEffect(() => {
+        handleVerification();
+    }, []);
+
+
+
+    const validateDataStructure = () => {
+        return data.every(item => item.hasOwnProperty('date') && item.hasOwnProperty('annee'));
+    };
+
+    const handleYearChange = (value) => {
+        setSelectedYear(value);
+        setSelectedMonth(undefined); // Réinitialise le mois sélectionné lorsque l'année est modifiée
+    };
+    
+    const handleMonthChange = (value) => {
+        setSelectedMonth(value);
+    };
+
+    const handleVerification2 = () => {
+        const messages = [];
+        const ListeAnnee = [];
+        const ListeMois = [];
+        const ListeJours = [];
+
+        data2.map((item, index) => {
+            const [jr, ms, an] = item.date.split('/');
+            let anneeConvert = parseInt(an);
+            let moisConvert = parseInt(ms);
+            let jourConvert = parseInt(jr);
+
+            ListeAnnee.push(anneeConvert);
+            ListeMois.push(moisConvert);
+            ListeJours.push(jourConvert);
+
+            const verification = anneeConvert === item.annee;
+
+            if (!verification) {
+                messages.push(`Ligne ${index} - L'année et la date pour la ville de ${item.nom} ne sont pas compatibles, car la date est :  ${item.date} et l'année indiquée est : ${item.annee}`);
+            }
+        });
+
+        if (messages.length === 0) {
+            setVerificationMessages2(["Toutes les années correspondent aux dates indiquées."]);
+        } else {
+            setVerificationMessages2(messages);
+        }
+
+        const uniqueListeAnnee = [...new Set(ListeAnnee)];
+        const uniqueListeMois = [1,2,3,4,5,6,7,8,9,10,11,12];
+        const uniqueListeJours = [...new Set(ListeJours)];
+
+
+        const TRieuniqueListeAnnee = uniqueListeAnnee.sort((a, b) => a - b);
+        
+
+        const occurrencesAnnee = uniqueListeAnnee.reduce((acc, year) => {
+            acc[year] = ListeAnnee.filter(y => y === year).length;
+            return acc;
+        }, {});
+
+        const occurrencesMois = uniqueListeAnnee.reduce((acc, year) => {
+            acc[year] = uniqueListeMois.reduce((accMois, mois) => {
+                accMois[mois] = data.filter(item => {
+                    const [jr, ms, an] = item.date.split('/');
+                    return parseInt(an) === year && parseInt(ms) === mois;
+                }).length;
+                return accMois;
+            }, {});
+            return acc;
+        }, {});
+
+        const occurrencesJours = uniqueListeAnnee.reduce((acc, year) => {
+            acc[year] = uniqueListeMois.reduce((accMois, mois) => {
+                accMois[mois] = uniqueListeJours.reduce((accJour, jour) => {
+                    accJour[jour] = data.reduce((count, item) => {
+                        const [jr, ms, an] = item.date.split('/');
+                        return parseInt(an) === year && parseInt(ms) === mois && parseInt(jr) === jour ? count + 1 : count;
+                    }, 0);
+                    return accJour;
+                }, {});
+                return accMois;
+            }, {});
+            return acc;
+        }, {});
+
+
+
+        setOccurrencesAnnee(occurrencesAnnee);
+        setOccurrencesMois(occurrencesMois);
+        setOccurrencesJours(occurrencesJours);
+        setUniqueListeAnnee(TRieuniqueListeAnnee);
+
+    
+    };
+
+    useEffect(() => {
+        const isValid = validateDataStructure();
+        setDataStructureValid(isValid);
+
+        if (isValid) {
+            handleVerification2();
+        }
+    }, []);
+    
 
     /*  Create markers sample and bounding box  */
     useEffect(() => {
@@ -150,7 +463,6 @@ export default function DistrGeo(props) {
                 let dfPlot = await df.iloc({rows: iloc_ix});
                 // st = endTime(st, 'Non NaN records selection');
 
-
                 // df = df.loc(idx_na);
                 // console.log('not idx_na: ', idx_nonna);
                 // console.log('nb NA val: ', df.index.length - dfPlot.index.length);
@@ -177,7 +489,7 @@ export default function DistrGeo(props) {
                 setBoundingBox([[minY, minX], [minY, maxX], [maxY, maxX], [maxY, minX]]);
 
                 /*  Get data sample for markers */
-                const nbMk = Math.min(maxNbMk, dfPlot.index.length);
+                const nbMk = Math.min(inputValue, dfPlot.index.length);
                 // console.log(`Showing ${nbMk} markers`);
                 let dfSample = null;
                 if (nbMk < dfPlot.index.length) {
@@ -200,11 +512,74 @@ export default function DistrGeo(props) {
                 // console.log('dfSample: ', dfSample.values);
                 setMarkers(dfSample.values);
                 // st = endTime(st, 'Sample markers creation');
+            
             }
         })();
-    }, [df, listColCoord])
+    }, [df, listColCoord, inputValue])
+
+
+
+    useEffect(() => {
+        // Initialisation des compteurs
+        const regionCountsInit = {};
+        const departementCountsInit = {};
+    
+        regions.features.forEach(region => {
+            regionCountsInit[region.properties.nom] = 0;
+        });
+    
+        departements.features.forEach(departement => {
+            departementCountsInit[departement.properties.nom] = 0;
+        });
+    
+        // Comptage des marqueurs dans chaque région et département
+        data.forEach(item => {
+            const regionPolygon = regions.features.find(region => maj(region.properties.nom) === maj(item.region));
+            const departementPolygon = departements.features.find(dept => maj(dept.properties.nom) === maj(item.departement)) && departements.features.find(dept => (dept.properties.code) === transformAndExtract(item.codeInsee));
+    
+            if (regionPolygon && booleanPointInPolygon([item.longitude, item.latitude], regionPolygon.geometry)) {
+                if (regionCountsInit.hasOwnProperty(item.region)) {
+                    regionCountsInit[item.region]++;
+                } else {
+                    regionCountsInit[item.region] = 1;
+                }
+            }
+    
+            if (departementPolygon && booleanPointInPolygon([item.longitude, item.latitude], departementPolygon.geometry)) {
+                if (departementCountsInit.hasOwnProperty(item.departement)) {
+                    departementCountsInit[item.departement]++;
+                } else {
+                    departementCountsInit[item.departement] = 1;
+                }
+            }
+        });
+
+        // console.log("la region counts : ", regionCountsInit);
+        // console.log("le departement counts: ", departementCountsInit);
+    
+        setRegionCounts(regionCountsInit);
+        setDepartementCounts(departementCountsInit);
+    }, []);
+    
+
+
+    const regionCountsData = Object.keys(regionCounts).map(region => ({
+        name: region,
+        count: regionCounts[region]
+    })).sort((a, b) => b.count - a.count);
+
+    // console.log(regionCountsData)
+
+
+    const departementCountsData = Object.keys(departementCounts).map(departements => ({
+        name: departements,
+        count: departementCounts[departements]
+    })).sort((a, b) => b.count - a.count);
 
     return (
+
+        <>
+        
         <Layout>
 
             {/*// ------------------------ Alert message if no markers ------------------------ */}
@@ -218,40 +593,255 @@ export default function DistrGeo(props) {
             <MkDoc mkFile={read_me}/>
 
             {/*// ------------------------ Map ------------------------------------------------ */}
-            <MapContainer
-                className="leaflet-container"
-                center={center}
-                zoom={zoomDef}
-                minZoom={minZoomDef}
-                maxZoom={maxZoomDef}
-                scrollWheelZoom={true}
-                zoomControl={false}
-            >
-                <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url={tileUrl}
-                />
+            {Page === "carte" && (
+                <MapContainer
+                    className="leaflet-container"
+                    center={center}
+                    zoom={zoomDef}
+                    minZoom={minZoomDef}
+                    maxZoom={maxZoomDef}
+                    scrollWheelZoom={true}
+                    zoomControl={false}
+                >
+                    <TileLayer
+                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                        url={tileUrl}
+                    />
 
-                {/* Markers:  */}
-                {markers && markers.map((mk, ix) => {
-                    // console.log('mk: ', mk, 'tooltip: ', mk[2]);
-                    return (
-                        <Marker
-                            key={ix}
-                            position={[mk[1], mk[0]]}
-                            // icon={iconDef}
-                        >
-                            <Tooltip>{<TooltipFormatted tooltip={mk[2]} key={ix}/>}</Tooltip>
-                        </Marker>
+                    {/* Markers:  */}
+                    {markers && markers.map((mk, ix) => {
+                        // console.log('mk: ', mk, 'tooltip: ', mk[2]);
+                        return (
+                            <Marker
+                                key={ix}
+                                position={[mk[1], mk[0]]}
+                                // icon={iconDef}
+                            >
+                                <Tooltip>{<TooltipFormatted tooltip={mk[2]} key={ix}/>}</Tooltip>
+                            </Marker>
+                        )
+                    })
+                    }
+
+                    {/* Affichage des données GeoJSON */}
+                    {selectedValue === "regions" && <GeoJSON data={regions.features} onEachFeature={onEachCountry} />}
+                    {selectedValue === "departements" && <GeoJSON data={departements.features} onEachFeature={onEachCountry} />}
+                    {selectedValue === "communes" && <GeoJSON data={communes.features} onEachFeature={onEachCountry} />}
+
+                    {/* Bounding box:    */}
+                    {/* {boundingBox && <Polygon positions={boundingBox}/>} */}
+                
+                </MapContainer>)}
+            {Page === "spatiale" &&(
+            
+                <div className="leaflet-container2" >
+
+                    <Radio.Group onChange={handleToggle} value={isBerSelected ? 'regions' : 'departements'}  style={{ marginTop: '16px' }}>
+                        <Space size="small">
+                            <Radio.Button value="regions">Regions</Radio.Button>
+                            <Radio.Button value="departements">Departements</Radio.Button>
+                        </Space>
+                    </Radio.Group>
+
+                    {isBerSelected ?( <div className="container">
+                        <div className="grid-container">
+                            <div className="grid-item">
+                                <SimpleRadarChart data={regionCountsData} />
+                            </div>
+                            <div className="grid-item">
+                                <PieChartWithCustomizedLabel data={regionCountsData} />
+                            </div>
+                            <div className="grid-item large">
+                                <SimpleBarChart data={regionCountsData} />
+                            </div>
+                        </div>
+                    </div>)
+                    :
+                    (<div className="container2" >
+                        <div className="grid-container2">
+
+                            {currentIndex === 0 && <div className="grid-item2">
+                                
+                                <SimpleBarChart2 data={departementCountsData} />
+                            </div>}
+
+                            {currentIndex === 1 && <div className="grid-item2">
+                                <PieChartWithCustomizedLabel2 data={departementCountsData} />
+                            </div>}
+
+                            {currentIndex === 2 && <div className="grid-item2">
+                                <SimpleRadarChart2 data={departementCountsData} />
+                            </div>}
+                        </div>
+                        <div>
+                            <Button onClick={handlePrevious}>Précédent</Button>
+                            <Button onClick={handleNext}>Suivant</Button>
+                        </div>
+                    </div>
                     )
-                })
-                }
+                    }
 
-                {/* Bounding box:    */}
-                {boundingBox && <Polygon positions={boundingBox}/>}
+                    
+                </div>
+            )}
 
-            </MapContainer>
+
+            {Page === "temporel" && (
+                <>
+                    {selectedYear === undefined || selectedYear === "ALL" && (
+                        <div className="container3">
+                        <h3>Visualisation graphique de toutes les années </h3>
+                        <div className="grid-container3">
+                            <div className="grid-item3">
+                                <SimpleRadarChart3 data={occurrencesAnnee} />
+                            </div>
+                            <div className="grid-item3">
+                                <PieChartWithCustomizedLabel3 data={occurrencesAnnee} />
+                            </div>
+                            <div className="grid-item3 large3">
+                                <SimpleBarChart3 data={occurrencesAnnee} />
+                            </div>
+                        </div>
+                    </div>
+                    )}
+
+                    {selectedYear && selectedYear !== "ALL" && !selectedMonth && (
+                        <div className="container3">
+                            <h3>Visualisation graphique de l'année : {parseInt(selectedYear)}</h3>
+                            <div className="grid-container3">
+                                <div className="grid-item3">
+                                    <PieChartWithCustomizedLabel3 data={occurrencesMois[parseInt(selectedYear)]} />
+                                </div>
+                                <div className="grid-item3">
+                                    <SimpleRadarChart3 data={occurrencesMois[parseInt(selectedYear)]} />
+                                </div>
+                                <div className="grid-item3 large3">
+                                    <SimpleBarChart3 data={occurrencesMois[parseInt(selectedYear)]} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {selectedMonth !== undefined && (
+                        <div className="container3">
+                            <h3>Visualisation graphique du mois de: {getMonthName(parseInt(selectedMonth))} de l'année: {parseInt(selectedYear)} </h3>
+                            <div className="grid-container3">
+                                <div className="grid-item3">
+                                    <PieChartWithCustomizedLabel3 data={occurrencesJours[parseInt(selectedYear)][parseInt(selectedMonth)]} />
+                                </div>
+                                <div className="grid-item3">
+                                    <SimpleRadarChart3 data={occurrencesJours[parseInt(selectedYear)][parseInt(selectedMonth)]} />
+                                </div>
+                                <div className="grid-item3 large3">
+                                    <SimpleBarChart3 data={occurrencesJours[parseInt(selectedYear)][parseInt(selectedMonth)]} />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <Space size="small">
+                    <Select defaultValue="Sélectionnez une Année" style={{ width: 200 }} onChange={handleYearChange} >
+                        <Select.Option value="ALL">Voir tout les année</Select.Option>
+                        {UniqueListeAnnee.map((annee, index) => (
+                            <Select.Option key={index} value={annee}>{annee}</Select.Option>
+                        ))}
+                    </Select>
+
+                    {selectedYear !== undefined && selectedYear !== "ALL" && (
+                        <Select defaultValue="Sélectionnez un mois" style={{ width: 200 }} onChange={handleMonthChange}>
+                        <Select.Option value="1">Janvier</Select.Option>
+                        <Select.Option value="2">Février</Select.Option>
+                        <Select.Option value="3">Mars</Select.Option>
+                        <Select.Option value="4">Avril</Select.Option>
+                        <Select.Option value="5">Mai</Select.Option>
+                        <Select.Option value="6">Juin</Select.Option>
+                        <Select.Option value="7">Juillet</Select.Option>
+                        <Select.Option value="8">Août</Select.Option>
+                        <Select.Option value="9">Septembre</Select.Option>
+                        <Select.Option value="10">Octobre</Select.Option>
+                        <Select.Option value="11">Novembre</Select.Option>
+                        <Select.Option value="12">Décembre</Select.Option>
+                        </Select>
+                    )}
+                    </Space>
+                </>
+            )}
+
+
+            {showMessages && (
+                <div className="popup">
+                    <div className="popup-inner">
+                        <Button onClick={() => setShowMessages(false)}>Fermer</Button>
+                        <Messages messages={verificationMessages} />
+                    </div>
+                </div>
+            
+            )}
+
+            {showMessages2 && (
+                <div className="popup">
+                    <div className="popup-inner">
+                        <Button onClick={() => setShowMessages2(false)}>Fermer</Button>
+                        <Messages messages={verificationMessages2} />
+                    </div>
+                </div>
+            )}
+
         </Layout>
 
+        <Col gutter={gutter} style={rowStyle}>
+            <Row >
+                <Col span={24}>
+                    <h3> le nombre maximum de marqueurs à afficher: </h3>
+                </Col>
+                <Col span={10}>
+                    <Slider min={1} max={2000} onChange={onChange} value={inputValue=="Null"? 1: inputValue} />
+                </Col>
+
+                <Col span={4}>
+                    <InputNumber min={1} max={2000} style={{ margin: '0 16px' }} step={1} value={inputValue} onChange={onChange} />
+                </Col>
+            </Row>
+
+            <Row justify="space-between" align="top">
+                <Col>
+                    <h3>Affichage des zones :</h3>
+                        <Radio.Group onChange={btnFrontiere} value={selectedValue}>
+                            <Space size="small"> 
+                                <Radio.Button value="regions">Régions</Radio.Button>
+                                <Radio.Button value="departements">Départements</Radio.Button>
+                                <Radio.Button value="communes">Communes</Radio.Button>
+                            </Space>
+                        </Radio.Group>
+                </Col>
+            
+                <Col>
+                    <h3>Voir la carte :</h3>
+                    <Radio.Group onChange={btnPage} value={Page}>
+                        <Radio.Button value="carte">Carte</Radio.Button>
+                    </Radio.Group>
+                </Col>
+                <Col>
+                    <h3>Voir le Graphique :</h3>
+                    <Radio.Group onChange={btnPage} value={Page}>
+                        <Space size="small">
+                            <Radio.Button value="spatiale">Spatial</Radio.Button>
+                            <Radio.Button value="temporel"  disabled={!dataStructureValid}>Temporel</Radio.Button>
+                        </Space>
+                    </Radio.Group>
+               
+                </Col>   
+
+                <Col>
+                    <h3>Faire une Vérification :</h3>
+                    <Space size="small">
+                        <Button onClick={() => setShowMessages(true)}>Vérification spatiale</Button>
+                        <Button onClick={() => setShowMessages2(true)} disabled={!dataStructureValid}>Vérification temporelle</Button>
+                    </Space>
+                    </Col>
+                </Row>
+        </Col>
+
+        </>
     )
 }

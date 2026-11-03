@@ -27,7 +27,10 @@ const ROW_KEY = 'key'; /* the unique row key    */
 const ALLOWED_EXT = ['csv'];    /*  list of file extensions that are allowed    */
 const EXT_ERROR_MSG = "L'application ne traite que des fichiers CSV.\nSi vous voulez traiter un fichier Excel, vous pouvez le convertir en csv en sélectionnant " +
                         "l'onglet à traiter, puis cliquer sur\n \
-                        'Fichier / Enregistrer sous /' et sélectionner le format 'CSV UTF-8'"
+                        'Fichier / Enregistrer sous /' et sélectionner le format 'CSV UTF-8'\n\n" +
+                        "• Privilégiez toujours le format 'CSV UTF-8' lors de l'export depuis Excel\n" +
+                        "• Si votre fichier contient des caractères mal affichés (ex: 'é' devient '�'), l'application tentera de les corriger automatiquement\n" +
+                        "• Pour de meilleurs résultats, assurez-vous que votre fichier source utilise l'encodage UTF-8"
 
 export default function HomePage() {
     const [fileList, setFileList] = useState([]);

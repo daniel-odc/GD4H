@@ -1,6 +1,6 @@
-import React, {useEffect, useRef, useState} from "react";
-import {Alert, Button, Col, Layout, Row, Spin, Popconfirm} from "antd";
-import {DownloadOutlined, ArrowsAltOutlined, ToolOutlined} from '@ant-design/icons';
+import React, {useEffect, useRef, useState, useMemo} from "react";
+import {Alert, Button, Col, Layout, Row, Spin, Popconfirm, Checkbox, Tooltip} from "antd";
+import {DownloadOutlined, ArrowsAltOutlined, ToolOutlined, AimOutlined} from '@ant-design/icons';
 import {toCSV, toExcel} from "danfojs";
 import {getDistance} from "geolib";
 
@@ -8,9 +8,8 @@ import {getDistance} from "geolib";
 import {addressToLatLng} from "../../generic_js/addressConversions";
 import {MkDoc} from "../doc/MkDoc";
 import read_me from "../../i18n/fr/read_me_opgeo.md";
-import {addKeyToDf, arrayToColumns} from "../../generic_js/generic";
-import TableOdc from "../layout/TableOdc";
-
+import {addKeyToDf} from "../../generic_js/generic";
+import TableOdc from "../layout/TableOdc"; 
 
 /*  Styles  */
 // const contentStyle = {padding: 10, margin: 0, minHeight: "calc(100vh - 64px - 48px)", maxWidth: 1800};
@@ -26,14 +25,25 @@ const F_API_LAT = 'lat_api_adresse';
 const F_API_LNG = 'lng_api_adresse';
 const F_API_ADDR = 'adresse_api_adresse';
 const F_DIST = 'distance_coord_adresses_km';
+const F_API_SCORE = 'score_fiabilite_api_coord';
+const F_API_STATUS = 'status_resultat';
+const F_API_TYPE = 'niveau_geocodage';
+
 
 const DIST_WARNING = 2; /*  Distance (in km) under which no warning on difference between address and coordinates   */
 const DIST_ERROR = 10; /*  Distance over which it appears in red   */
+
+const NEAR = 1;
+const BETWEEN = 5;              //marius 
+const FAR = 10;
 
 const API_RENAME = {
     'latitude': F_API_LAT,
     'longitude': F_API_LNG,
     'result_label': F_API_ADDR,
+    'result_score': F_API_SCORE,
+    'result_type': F_API_TYPE,
+    'result_status': F_API_STATUS,
 };
 
 /*  Render functions for new fields in table:   */
@@ -47,6 +57,13 @@ RENDER_FUNC[F_API_LNG] = (val) => {
 RENDER_FUNC[F_API_ADDR] = (val) => {
     return <span style={{color: 'blue'}}>{val}</span>
 }
+
+RENDER_FUNC[F_API_SCORE] = (val) => {
+    let convert = (parseFloat(val).toFixed(2)) // convert to float and keep 2 decimals 
+    let colorVal = (convert) ? (Math.abs(convert) < NEAR ) ? 'green' : (Math.abs(convert) < BETWEEN)? 'orange': (Math.abs(convert) < FAR)? 'red': "black" : "black";
+    return <span style={{color: colorVal, minWidth: '30px'}}>{convert}</span>;  
+    
+}
 RENDER_FUNC[F_DIST] = (val) => {
     let colorVal = (val) ? (Math.abs(val) < DIST_WARNING) ?
         'green' : (Math.abs(val) < DIST_ERROR) ? 'orange' : 'red' : 'black';
@@ -54,16 +71,28 @@ RENDER_FUNC[F_DIST] = (val) => {
     return <span style={{color: colorVal}}>{returnedVal}</span>
 }
 
+RENDER_FUNC[F_API_TYPE] = (val) => {
+    return <span style={{color: 'blue'}}>{val}</span>
+}
+RENDER_FUNC[F_API_STATUS] = (val) => {
+    return <span style={{color: 'blue'}}>{val}</span>
+}
+
+
+
 /*  Export format:  */
 const EXP_FORMAT = 'xls';   /*  to avoid encoding issues    */
 
 const {Content} = Layout;
 
-
 export default function OpGeo(props) {
     const fileObj = props.fileObj;  /*  the selected CSV file to be sent to the Address API */
     const listColAddr = props.listColAddr;  /*  list of headers making up the address   */
-    const listColCoord = props.listColCoord ? props.listColCoord : [];  /*  list of existing coordinates for comparison with addresses  */
+    
+    const listColCoord = useMemo(() => {
+        return props.listColCoord ? props.listColCoord : [];
+    }, [props.listColCoord]);  /*  list of existing coordinates for comparison with addresses  */
+    
     const df = props.df;    /*  full dataframe as entry */
 
     const [dfTbl, setDfTbl] = useState(null);
@@ -72,6 +101,7 @@ export default function OpGeo(props) {
     const [loadingApi, setLoadingApi] = useState(false);
     const [nbApiCall, setNbApiCall] = useState(0);
     const [apiWarning, setApiWarning] = useState(null);
+    const [useSmartGeocoding, setUseSmartGeocoding] = useState(false);  /*  Nouveau: mode géocodage intelligent  */
     const colCoordRef = useRef([]); /*  inde xof columns of coordinates after the api is called: [colX1, colY1, colX2, colY2] (for comparison between input coordinates and addresses)    */
 
     const existCoord = (listColCoord[0].length > 1) ? true : false;
@@ -93,8 +123,10 @@ export default function OpGeo(props) {
             // console.log('listColCoord OPFGEO: ', listColCoord);
             const dfCol = await df.loc({columns: ['key', ...listColAddr, ...listColCoord[0]]});
             setDfTbl(dfCol);
+
         })();
-    }, [])
+    }, [df, listColAddr, listColCoord])
+
 
     /*  Call the API for conversion */
 
@@ -107,31 +139,61 @@ export default function OpGeo(props) {
 
         if (nbApiCall === 0) {
             setLoadingApi(true);    /*  to use in loading UI    */
-            let dfLatLng = await addressToLatLng(fileObj, {colRename: API_RENAME});   /*  options to complete */
-            // console.log('FINAL DF API:');
-            // dfLatLng.head().print();
+            try {
+                // Vérifications pré-API pour diagnostic
+                // console.log('=== DIAGNOSTIC PRE-API ===');
+                // console.log('Fichier:', fileObj.name, 'taille:', fileObj.size);
+                // console.log('Colonnes adresse sélectionnées:', listColAddr);
+                // console.log('Nombre d\'adresses à traiter:', nbAddr);
+                
+                // Vérifier si le fichier a des données
+                if (nbAddr === 0) {
+                    throw new Error('Aucune ligne de données à traiter');
+                }
+                // Vérifier si des colonnes d'adresse sont sélectionnées
+                if (!listColAddr || listColAddr.length === 0) {
+                    throw new Error('Aucune colonne d\'adresse sélectionnée');
+                }
+                
+                
+                let dfLatLng = await addressToLatLng(fileObj, {
+                    colRename: API_RENAME,
+                    createFullAddress: true,
+                    useSmartGeocoding: useSmartGeocoding  
+                });   /*  options to complete */
+                // console.log('FINAL DF API:');
+                // dfLatLng.head().print();
 
-            /*  Add key to returned table:  */
-            dfLatLng = addKeyToDf(dfLatLng, {colKey: 'key'});
+                /*  Add key to returned table:  */
+                dfLatLng = addKeyToDf(dfLatLng, {colKey: 'key'});
 
-            /*  Update table: COLUMNS FORMATTING TO DO  */
-            setDfTbl(dfLatLng);
+                /*  Update table: COLUMNS FORMATTING TO DO  */
+                setDfTbl(dfLatLng);
 
-            setLoadingApi(false);
-            setApiCalled(true);
+                setLoadingApi(false);
+                setApiCalled(true);
 
-            /*  Build full df TO DO */
-            // console.log('REPLACE FULL DF TO DO');
-            setDfExport(dfLatLng);
+                /*  Build full df TO DO */
+                // console.log('REPLACE FULL DF TO DO');
+                setDfExport(dfLatLng);
 
-            /*  Get the columns of coordinates in case we want to compute the distance between them */
-            if (listColCoord) {
-                // console.log('coord in columns? ', fLng, dfLatLng.columns);
-                const colX1 = dfLatLng.columns.indexOf(fLng);
-                const colY1 = dfLatLng.columns.indexOf(fLat);
-                const colX2 = dfLatLng.columns.indexOf(F_API_LNG);
-                const colY2 = dfLatLng.columns.indexOf(F_API_LAT);
-                colCoordRef.current = [colX1, colY1, colX2, colY2];
+                /*  Get the columns of coordinates in case we want to compute the distance between them */
+                if (listColCoord) {
+                    // console.log('coord in columns? ', fLng, dfLatLng.columns);
+                    const colX1 = dfLatLng.columns.indexOf(fLng);
+                    const colY1 = dfLatLng.columns.indexOf(fLat);
+                    const colX2 = dfLatLng.columns.indexOf(F_API_LNG);
+                    const colY2 = dfLatLng.columns.indexOf(F_API_LAT);
+                    colCoordRef.current = [colX1, colY1, colX2, colY2];
+                }
+                
+                // Clear any previous API warning
+                setApiWarning(null);
+                
+            } catch (error) {
+                console.error('Erreur lors de la conversion des adresses:', error);
+                setLoadingApi(false);
+                setApiWarning(`Erreur lors de la conversion des adresses: ${error.message}`);
             }
         } else {
             if (loadingApi) {
@@ -166,8 +228,7 @@ export default function OpGeo(props) {
         /*      Build coordinate object for geolib.getDistance method:  */
         const pt1 = {latitude: lat1, longitude: lng1};
         const pt2 = {latitude: lat2, longitude: lng2};
-        /*  Compute distance in km:   */
-        const dist = getDistance(pt1, pt2) / 1000;
+        const dist = getDistance(pt1, pt2) / 1000; 
         return dist;
     }
 
@@ -205,24 +266,34 @@ export default function OpGeo(props) {
                     </Col>
 
                     <Col>
+                        <div style={{marginBottom: 10}}>
+                            <Tooltip title="Le géocodage de précision utilise l'API de recherche individuelle pour une meilleure précision basée sur les codes postaux et le code INSEE si disponible. Plus lent mais plus précis.">
+                                <Checkbox 
+                                    checked={useSmartGeocoding} 
+                                    onChange={(e) => setUseSmartGeocoding(e.target.checked)}
+                                >
+                                    <AimOutlined /> Géocodage de précision
+                                </Checkbox>
+                            </Tooltip>
+                        </div>
 
                         {checkBeforeApiCall &&
                             <Popconfirm
                                 title="Appel API adresses"
-                                description={`Vous allez lancer un appel API pour convertir ${df.index.length} adresses. Cela peut prendre un certain temps. Êtes-vous sûrs de vouloir continuer?`}
+                                description={`Vous allez lancer un appel API pour convertir ${df.index.length} adresses${useSmartGeocoding ? ' en mode intelligent (plus lent mais plus précis)' : ''}. Cela peut prendre un certain temps. Êtes-vous sûrs de vouloir continuer?`}
                                 onConfirm={callApi}
                                 onCancel={cancelApi}
                                 okText="Oui, continuer"
                                 cancelText="Non, abandonner"
                             >
                                 <Button disabled={disableApi}>
-                                    <ToolOutlined/> Convertir en lat, lng
+                                    <ToolOutlined/> {useSmartGeocoding ? 'Convertir en lat, lng (mode précision)' : 'Convertir en lat, lng'}
                                 </Button>
                             </Popconfirm>}
 
                         {!checkBeforeApiCall &&
                             <Button disabled={disableApi} onClick={callApi}>
-                                <ToolOutlined/> Convertir en lat, lng
+                                <ToolOutlined/> {useSmartGeocoding ? 'Convertir en lat, lng (mode précision)' : 'Convertir en lat, lng'}
                             </Button>
                         }
                     </Col>
@@ -239,10 +310,13 @@ export default function OpGeo(props) {
 
                 {/*// ------------------------ Alert message for file extension error ----------------- */}
                 {apiWarning && <Row align="left" gutter={gutter} style={rowStyle}>
-                    <Alert message={apiWarning} type="warning" closable/>
+                    <Alert 
+                        message={apiWarning} 
+                        type="warning" 
+                        closable 
+                        onClose={() => setApiWarning(null)}
+                    />
                 </Row>}
-
-                {/*// ------------------------ Content -------------------------------------------------- */}
 
 
                 <Row align="middle" gutter={gutter} style={rowStyle}>

@@ -1,16 +1,17 @@
 
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useState} from "react";
 import { useLocation } from "react-router-dom";
 import {Layout, Row, Col, Tabs} from 'antd';
-
 
 /*  Project components:  */
 import DistrGeo from "../components/maps/DistrGeo";
 import OpGeo from "../components/maps/OpGeo";
+import ProjGeo from "../components/maps/ProjGeo";
 import {buildAddrCol, buildCoordCol} from "../generic_js/fieldsDetection";
 import {objToDataframe} from "../generic_js/generic";    //, startTime, endTime
 
 const {Content} = Layout;
+
 
 /*  Styles  */
 const layoutStyle = {minHeight: "calc(100vh - 64px - 48px)"};
@@ -25,7 +26,7 @@ const gutter = [16, 16]; /* horizontal and vertical space between grid elements 
 const tabItems = [
   {
     key: 'coord',
-    label: `Distribution géographique`,
+    label: `Distribution des Objets`,
     children: `Content TO DO 1`,
   },
     {
@@ -33,6 +34,11 @@ const tabItems = [
     label: `Conversions géographiques`,
     children: `Content TO DO 2`,
   },
+  {
+    key: 'proj',
+    label: `Projection des coordonnées`,
+    children: `Content TO DO 3`,  
+  }
   // {
   //   key: '2',
   //   label: `Distribution temporelle`,
@@ -55,8 +61,7 @@ export default function DataCheckPage() {
     const [activeTab, setActiveTab] = useState(null);  /*  landing tab */
     const [, setListColCoord] = useState(null);
     const [, setListColAddr] = useState(null);
-
-
+   
     /*  Convert df to Dataframe and get columns info */
     useEffect(() => {
         // let st = startTime();   /*  only for tests: for measuring computation time  */
@@ -90,9 +95,16 @@ export default function DataCheckPage() {
                 listColCoord={listCoordTmp}
             />;
 
-        })();
-    }, []);
+            /*    projection  */
+            tabItems[2].children = <ProjGeo
+                fileObj={fileObj}
+                df={df}
+                listColAddr={listAddrTmp}
+                listColCoord={listCoordTmp}
+            />; // 
 
+            })();
+    }, []);
 
     return (
         <Layout style={layoutStyle}>

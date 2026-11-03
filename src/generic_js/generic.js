@@ -12,6 +12,161 @@ export const getFileExtension = (fileObj) => {
 }
 
 /**
+ * Function to detect and fix encoding issues in text
+ * Particularly useful for French characters and common encoding problems
+ * @param {string} text - The text to fix
+ * @returns {string} - The corrected text
+ */
+export const fixEncodingIssues = (text) => {
+    if (typeof text !== 'string') return text;
+    
+    const hasEncodingIssues = /Ã©|Ã¨|Ã¯|Ã´|Ã |Ã¢|Ã§|Ã¹|Ã»|Ã¶|Ã¤|Ã«|Ã®|Ã¼|Ã±|Ã‰|Ã€|Ã‡|ÃŠ|Ã‹|ÃŽ|ÃÏ|Ã"|Ã•|Ã–|Ã™|Ãš|Ã›|Ãœ|Ã¡|Ã­|Ã³|Ãº|Ã½|ÃÁ|ÃÍ|ÃÓ|ÃÚ|ÃÝ|Ã�|â€™|â€œ|â€�|â€¦|â€"|�/.test(text);
+    
+    if (!hasEncodingIssues) {
+        return text;
+    }
+    
+    // Mapping 
+    // const encodingFixes = {
+    //     'Ã©': 'é', 'Ã¨': 'è', 'Ã¯': 'ï', 'Ã´': 'ô', 'Ã ': 'à',
+    //     'Ã¢': 'â', 'Ã§': 'ç', 'Ã¹': 'ù', 'Ã»': 'û', 'Ã¶': 'ö',
+    //     'Ã¤': 'ä', 'Ã«': 'ë', 'Ã®': 'î', 'Ã¼': 'ü', 'Ã±': 'ñ',
+    //     'Ã‰': 'É', 'Ã€': 'À', 'Ã‡': 'Ç', 'ÃŠ': 'Ê', 'Ã‹': 'Ë',
+    //     'ÃŽ': 'Î', 'ÃÏ': 'Ï', 'Ã"': 'Ô', 'Ã•': 'Õ', 'Ã–': 'Ö',
+    //     'Ã™': 'Ù', 'Ãš': 'Ú', 'Ã›': 'Û', 'Ãœ': 'Ü',
+        
+    //     'Ã¡': 'á', 'Ã­': 'í', 'Ã³': 'ó', 'Ãº': 'ú', 'Ã½': 'ý',
+    //     'ÃÁ': 'Á', 'ÃÍ': 'Í', 'ÃÓ': 'Ó', 'ÃÚ': 'Ú', 'ÃÝ': 'Ý',
+        
+    //     '�': 'é', 'â€™': "'", 'â€œ': '"', 'â€�': '"',
+    //     'â€"': '—', 'â€¦': '…',
+    // };
+    
+    let fixedText = text;
+    
+    // for (const [wrong, correct] of Object.entries(encodingFixes)) {
+    //     if (fixedText.includes(wrong)) {
+    //         fixedText = fixedText.replace(new RegExp(wrong, 'g'), correct);
+    //     }
+    // }
+    
+    // fixedText = fixedText.replace(/�/g, '');
+    // if (/\s{2,}/.test(fixedText)) {
+    //     fixedText = fixedText.replace(/\s+/g, ' ').trim();
+    //}
+    return fixedText;
+}
+
+/**
+ * Function to apply encoding fixes to a DataFrame
+ * @param {DataFrame} df - The DataFrame to fix
+ * @returns {DataFrame} - The DataFrame with corrected encoding
+ */
+export const fixDataFrameEncoding = (df) => {
+    if (!df || !df.columns) return df;
+    
+    try {
+        // Corriger les noms de colonnes seulement si nécessaire
+        const columnMapping = {};
+        df.columns.forEach(col => {
+            const fixedCol = fixEncodingIssues(col);
+            if (fixedCol !== col) {
+                columnMapping[col] = fixedCol;
+            }
+        });
+        
+        if (Object.keys(columnMapping).length > 0) {
+            df = df.rename(columnMapping);
+            console.log('Noms de colonnes corrigés:', columnMapping);
+        }
+        
+        // Corriger les données textuelles seulement si des problèmes sont détectés
+        df.columns.forEach(col => {
+            try {
+                const colData = df[col];
+                if (colData && colData.values) {
+                    // Vérifier un échantillon plus large pour détecter les problèmes d'encodage
+                    const sampleSize = Math.min(20, colData.values.length);
+                    let hasEncodingIssues = false;
+                    let problematicValues = 0;
+                    
+                    for (let i = 0; i < sampleSize; i++) {
+                        const val = colData.values[i];
+                        if (val && typeof val === 'string') {
+                            const fixedVal = fixEncodingIssues(val);
+                            if (fixedVal !== val) {
+                                problematicValues++;
+                            }
+                        }
+                    }
+                    
+                    // Ne corriger que si au moins 10% des valeurs échantillonnées ont des problèmes
+                    hasEncodingIssues = (problematicValues / sampleSize) >= 0.1;
+                    
+                    if (hasEncodingIssues) {
+                        const fixedData = colData.values.map(val => 
+                            val !== null && val !== undefined && typeof val === 'string' 
+                                ? fixEncodingIssues(val) 
+                                : val
+                        );
+                        df.addColumn(col, fixedData, { inplace: true });
+                        console.log(`Encodage corrigé pour la colonne: ${col} (${problematicValues}/${sampleSize} valeurs problématiques détectées)`);
+                    }
+                }
+            } catch (colError) {
+                console.warn(`Erreur lors de la correction de la colonne ${col}:`, colError);
+                // Continuer avec les autres colonnes
+            }
+        });
+        
+    } catch (error) {
+        console.warn('Erreur lors de la correction d\'encodage du DataFrame:', error);
+        // Retourner le DataFrame original en cas d'erreur
+    }
+    
+    return df;
+}
+
+/**
+ * Function to diagnose encoding issues in the loaded DataFrame
+ * Logs information about potential encoding problems
+ * @param {DataFrame} df - The DataFrame to diagnose
+ */
+export const diagnoseEncodingIssues = (df) => {
+    if (!df || !df.columns) return;
+    
+    // console.log('=== Diagnostic d\'encodage ===');
+    // console.log('Nombre de colonnes:', df.columns.length);
+    // console.log('Colonnes:', df.columns);
+    
+    df.columns.forEach(col => {
+        const fixedCol = fixEncodingIssues(col);
+        if (fixedCol !== col) {
+            console.log(`Colonne avec problème d'encodage: "${col}" → "${fixedCol}"`);
+        }
+    });
+    
+    df.columns.slice(0, 3).forEach(col => { 
+        try {
+            const colData = df[col];
+            if (colData && colData.values) {
+                const sampleValues = colData.values.slice(0, 3); 
+                sampleValues.forEach((val, idx) => {
+                    if (val && typeof val === 'string') {
+                        const fixedVal = fixEncodingIssues(val);
+                        if (fixedVal !== val) {
+                            console.log(`${col}[${idx}]: "${val}" → "${fixedVal}"`);
+                        }
+                    }
+                });
+            }
+        } catch (error) {
+            console.warn(`Erreur lors du diagnostic de la colonne ${col}:`, error);
+        }
+    });
+}
+
+/**
  * Function loading a file into a Danfo dataframe.
  * For now only manages csv, xls, and xlsx
  * Further extensions to manage...
@@ -26,9 +181,20 @@ export const loadDataframe = async (fileObj) => {
     let dfTmp = null;
     if (fExt === 'csv') {
         dfTmp = await readCSV(fileObj);
+        
+        if (dfTmp) {
+            //console.log('DataFrame chargé, diagnostic d\'encodage...');
+            diagnoseEncodingIssues(dfTmp);
+            dfTmp = fixDataFrameEncoding(dfTmp);
+            // console.log('Correction d\'encodage terminée');
+        }
     }
     else if ((fExt === 'xls') || (fExt === 'xlsx')) {
         dfTmp = await readExcel(fileObj);
+        
+        if (dfTmp) {
+            dfTmp = fixDataFrameEncoding(dfTmp);
+        }
     }
     else {
         printMsg(`File extension "${fExt}" not managed by the application...`, 'error')

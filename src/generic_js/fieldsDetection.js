@@ -19,17 +19,22 @@ const L_Y_COORD = ['latitude', 'lat']; /*  , 'y' not applicable as too many fiel
 /*      List of strings identifying coordinates fields: TO COMPLETE   */
 const L_COORD_STR = [...L_X_COORD, ...L_Y_COORD];
 
+/*      List of strings identifying projection fields: TO COMPLETE   */
+const L_PROJ_STR = ['projection', 'proj', 'epsg'];
+
 /*      Keys defining the 'date' and 'coordinate' fields
 *       UPDATE in STR_FIELDS if updated here...          */
 export const KEY_DATE = 'date';
 export const KEY_COORD = 'coord';
 export const KEY_ADDR = 'addr';
+export const KEY_PROJ = 'proj';
 export const KEY_OTHER = 'other';
 
 export const STR_FIELDS = {
     'date': 'Date',
     'coord': 'Coordonnées',
     'addr': 'Adresse',
+    'proj' : 'Projection',
     'other': 'Autres',
 };
 
@@ -129,7 +134,9 @@ export const detectColType = (colName) => {
     if (getColType(nameTmp, KEY_COORD, L_COORD_STR) !== null) return colType;
     /*      addresses:              */
     if (getColType(nameTmp, KEY_ADDR, L_ADDR_STR) !== null) return colType;
-    return colType;
+     /*      projections:            */
+     if (getColType(nameTmp, KEY_PROJ, L_PROJ_STR) !== null) return colType;
+     return colType;
 }
 
 /**
