@@ -1,3 +1,6 @@
+# 04/11/2026
+- Managed files encoding on home page
+
 # 03/11/2026
 - Update Node to `v24.22.2`, React to `React19`, `antd6` etc. and updated all dependant libs in `package.json`
 - Add Api key for background maps: `REACT_APP_CARTO_API_KEY` in `.env.local`
