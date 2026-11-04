@@ -1,6 +1,6 @@
 import React, {useState, useEffect} from "react";
 import {useNavigate} from "react-router";
-import {Layout, Row, Col, Button, Upload, Alert, Spin} from 'antd';
+import {Layout, Row, Col, Button, Upload, Alert, Spin, Select, Space} from 'antd';
 import {UploadOutlined} from '@ant-design/icons';
 // import {toJSON} from "danfojs";
 
@@ -9,7 +9,7 @@ import {Links} from "../data/AppInfo";
 import read_me from "../i18n/fr/read_me_home_page.md";  /*  Pages instructions  */
 
 /*  Generic project libs:   */
-import {loadDataframe, getFileExtension} from "../generic_js/generic";  //, startTime, endTime
+import {loadDataframe, getFileExtension, detectEncoding, toUtf8File, ENCODINGS} from "../generic_js/generic";  //, startTime, endTime
 import {formatDfColumnNames} from "../generic_js/fieldsDetection";
 import {MkDoc} from "../components/doc/MkDoc";
 import TableOdc from "../components/layout/TableOdc";
@@ -43,6 +43,9 @@ export default function HomePage() {
     const [nbRowsDispl, setNbRowsDispl] = useState(0);
     const [loading, setLoading] = useState(false);
     const [loadError, setLoadError] = useState(false);
+    const [encoding, setEncoding] = useState(null);          /*  encoding chosen by the user (null: automatic detection)  */
+    const [encodingInfo, setEncodingInfo] = useState(null);  /*  detected encoding: {encoding, certain}  */
+    const [fileUtf8, setFileUtf8] = useState(null);          /*  selected file converted to UTF-8, passed to the next pages  */
     const navigate = useNavigate();
 
     /**
@@ -54,9 +57,21 @@ export default function HomePage() {
 
             /*  Load csv / excel with danfojs:  */
             if (fileList[0]) {
+                setLoading(true);
+
+                /*  Infer the file encoding (unless chosen by the user), then convert the file to UTF-8:  */
+                let enc = encoding;
+                if (!enc) {
+                    const detected = await detectEncoding(fileList[0]);
+                    setEncodingInfo(detected);
+                    enc = detected.encoding;
+                }
+                const fileTmp = await toUtf8File(fileList[0], enc);
+                setFileUtf8(fileTmp);
+
                 /*  Get file extension: */
                 // let st = startTime();
-                let dfTmp = await loadDataframe(fileList[0]);
+                let dfTmp = await loadDataframe(fileTmp);
                 // st = endTime(st, 'Data load');
 
                 // dfTmp.print();
@@ -88,7 +103,7 @@ export default function HomePage() {
                 setLoading(false);
             }
         })();
-    }, [fileList]);
+    }, [fileList, encoding]);
 
 
     /**
@@ -101,6 +116,8 @@ export default function HomePage() {
             newFileList.splice(index, 1);
             setFileList(newFileList);
             setIsFile(false);
+            setEncoding(null);
+            setEncodingInfo(null);
         },
         beforeUpload: (file) => {
             /*  Check the file extension (the app only allows csv for now):   */
@@ -117,6 +134,8 @@ export default function HomePage() {
             }
 
             // setFileList([...fileList, file]);     /*  to add files in a list  */
+            setEncoding(null);      /*  new file: automatic encoding detection  */
+            setEncodingInfo(null);
             setFileList([file]);   /*  to keep always only one file  */
             // console.log('file: ', file);
             setIsFile(true)
@@ -131,7 +150,7 @@ export default function HomePage() {
      */
     const analyseFile = async () => {
         // navigate(Links.table, {state: {fileName: fileList[0].name, df: df}});
-        navigate(Links.table, {state: {fileObj: fileList[0], df: df}});
+        navigate(Links.table, {state: {fileObj: fileUtf8, df: df}});
     };
 
     return (
@@ -173,6 +192,19 @@ export default function HomePage() {
                     <Col span={24}>
                         <span>Aperçu de la donnée ({nbRowsDispl} premiers enregistements sur un total de <b>{nbRows && nbRows.toLocaleString()}</b> enregistrements):</span>
                     </Col>
+
+                    {/*  Encoding not certain (file not in UTF-8): let the user reload it with another encoding  */}
+                    {encodingInfo && !encodingInfo.certain && <Col span={24}>
+                        <Space>
+                            <span>Charger le fichier avec un encodage différent :</span>
+                            <Select
+                                value={encoding ?? encodingInfo.encoding}
+                                options={ENCODINGS}
+                                onChange={setEncoding}
+                                style={{width: 380}}
+                            />
+                        </Space>
+                    </Col>}
 
                     <TableOdc
                         df={tblDf}

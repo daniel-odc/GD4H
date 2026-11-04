@@ -11,6 +11,52 @@ export const getFileExtension = (fileObj) => {
     return fileObj.name.split('.').pop().toLowerCase();
 }
 
+/*  Encodings proposed to the user (latin alphabet, Europe).
+    Note: browsers decode 'iso-8859-1' / 'latin1' as 'windows-1252' (WHATWG Encoding standard), hence a single entry  */
+export const ENCODINGS = [
+    {value: 'utf-8', label: 'UTF-8'},
+    {value: 'windows-1252', label: "Windows-1252 / Latin-1 (ANSI, Europe de l'Ouest)"},
+    {value: 'iso-8859-15', label: "ISO-8859-15 / Latin-9 (Europe de l'Ouest, avec €)"},
+    {value: 'windows-1250', label: 'Windows-1250 (Europe centrale)'},
+    {value: 'iso-8859-2', label: 'ISO-8859-2 / Latin-2 (Europe centrale)'},
+    {value: 'macintosh', label: 'Mac Roman'},
+];
+
+const ENCODING_SAMPLE_SIZE = 4 * 1024 * 1024;   /*  bytes read to infer the encoding    */
+
+/**
+ * Function inferring the text encoding of a file
+ * Valid UTF-8 (or a UTF-8 BOM) is reliable: text in another encoding with accents is almost never valid UTF-8.
+ * Otherwise the file is most likely Windows-1252 (Excel "CSV" / "ANSI" export), but this is a guess.
+ * @param fileObj: file object
+ * @returns {Promise<{encoding: string, certain: boolean}>}
+ * */
+export const detectEncoding = async (fileObj) => {
+    const bytes = new Uint8Array(await fileObj.slice(0, ENCODING_SAMPLE_SIZE).arrayBuffer());
+    if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) {
+        return {encoding: 'utf-8', certain: true};
+    }
+    try {
+        /*  stream: true so that a character cut at the end of the sample is not an error  */
+        new TextDecoder('utf-8', {fatal: true}).decode(bytes, {stream: true});
+        return {encoding: 'utf-8', certain: true};
+    } catch {
+        return {encoding: 'windows-1252', certain: false};
+    }
+}
+
+/**
+ * Function returning the file converted to UTF-8 (unchanged if already UTF-8),
+ * so that all later reads of the file (danfo, fileObj.text(), address API upload) get the right characters
+ * @param fileObj: file object
+ * @param encoding: encoding of the file (one of ENCODINGS values)
+ * */
+export const toUtf8File = async (fileObj, encoding) => {
+    if (encoding === 'utf-8') return fileObj;
+    const text = new TextDecoder(encoding).decode(await fileObj.arrayBuffer());
+    return new File([text], fileObj.name, {type: fileObj.type, lastModified: fileObj.lastModified});
+}
+
 /**
  * Function to detect and fix encoding issues in text
  * Particularly useful for French characters and common encoding problems
