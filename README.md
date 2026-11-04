@@ -2,7 +2,6 @@
 
 TO DO
 - Update Gitlab GD4H to redirect to [INERIS Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi.git)
-- Characters encoding dialog
 - Precise geocoding implementation
 - change bug tracker link
 - change `A propos` page
