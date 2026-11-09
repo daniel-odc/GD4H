@@ -21,6 +21,7 @@
     "danfojs": "1.1.2",
     "geolib": "^4.0.1",
     "leaflet": "^1.9.4",
+    "papaparse": "^5.7.0",
     "proj4": "^2.22.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

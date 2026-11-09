@@ -5,7 +5,7 @@ import {toCSV, toExcel} from "danfojs";
 import {getDistance} from "geolib";
 
 /*  Generic project libs:   */
-import {addressToLatLng} from "../../generic_js/addressConversions";
+import {addressToLatLng, SMART_GEOCODING_MAX_ADDRESSES} from "../../generic_js/addressConversions";
 import {MkDoc} from "../doc/MkDoc";
 import read_me from "../../i18n/fr/read_me_opgeo.md";
 import {addKeyToDf} from "../../generic_js/generic";
@@ -110,6 +110,10 @@ export default function OpGeo(props) {
 
     /*  Get number of records:  */
     const nbAddr = df.index.length;
+
+    /*  Precision geocoding is limited in number of addresses: rows beyond the limit are not processed  */
+    const nbDiscarded = useSmartGeocoding ? Math.max(0, nbAddr - SMART_GEOCODING_MAX_ADDRESSES) : 0;
+    const nbFilesToSplit = Math.ceil(nbAddr / SMART_GEOCODING_MAX_ADDRESSES);
 
     /*  Get lat and lng field names:    */
     const fLat = listColCoord[0] ? listColCoord[0][1] : null;
@@ -267,8 +271,8 @@ export default function OpGeo(props) {
 
                     <Col>
                         <div style={{marginBottom: 10}}>
-                            <Tooltip title="Le géocodage de précision utilise l'API de recherche individuelle pour une meilleure précision basée sur les codes postaux et le code INSEE si disponible. Plus lent mais plus précis.">
-                                <Checkbox 
+                            <Tooltip title="Le géocodage de précision utilise l'API de recherche individuelle pour une meilleure précision basée sur les codes postaux et le code INSEE si disponible. Plus lent mais plus complet dans le cas de codes postaux / codes INSEE manquants.">
+                                <Checkbox
                                     checked={useSmartGeocoding} 
                                     onChange={(e) => setUseSmartGeocoding(e.target.checked)}
                                 >
@@ -280,7 +284,7 @@ export default function OpGeo(props) {
                         {checkBeforeApiCall &&
                             <Popconfirm
                                 title="Appel API adresses"
-                                description={`Vous allez lancer un appel API pour convertir ${df.index.length} adresses${useSmartGeocoding ? ' en mode intelligent (plus lent mais plus précis)' : ''}. Cela peut prendre un certain temps. Êtes-vous sûrs de vouloir continuer?`}
+                                description={`Vous allez lancer un appel API pour convertir ${df.index.length} adresses${useSmartGeocoding ? ' en mode intelligent (plus lent mais plus complet dans le cas de codes postaux / codes INSEE manquants)' : ''}. Cela peut prendre un certain temps. Êtes-vous sûrs de vouloir continuer?`}
                                 onConfirm={callApi}
                                 onCancel={cancelApi}
                                 okText="Oui, continuer"
@@ -301,6 +305,15 @@ export default function OpGeo(props) {
                     {/*// ------------------------ Alert message if no address for conversion ---------- */}
                     {disableApi && <Col span={24}>
                         <Alert title="Pas d'adresses dans la donnée à convertir en coordonnées..." type="warning" closable/>
+                    </Col>}
+
+                    {/*// ------------------------ Alert message if too many addresses for precision geocoding --- */}
+                    {nbDiscarded > 0 && <Col span={24}>
+                        <Alert
+                            type="warning"
+                            title={`Le géocodage de précision est limité à ${SMART_GEOCODING_MAX_ADDRESSES.toLocaleString('fr-FR')} adresses : ${nbDiscarded.toLocaleString('fr-FR')} lignes seront ignorées (non traitées).`}
+                            description={`Pour traiter toutes les adresses, divisez le fichier en ${nbFilesToSplit} fichiers de ${SMART_GEOCODING_MAX_ADDRESSES.toLocaleString('fr-FR')} lignes maximum et lancez l'extraction ${nbFilesToSplit} fois.`}
+                        />
                     </Col>}
 
                 </Row>

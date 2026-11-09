@@ -16,6 +16,7 @@
 
 import axios from "axios";
 import {DataFrame, merge} from "danfojs";
+import Papa from "papaparse";
 // import {useEffect, useState} from "react";
 
 /*  Generic project libs:   */
@@ -24,28 +25,29 @@ import {loadDataframe} from "./generic";
 
 // Configuration for smart geocoding
 const SMART_GEOCODING_CONFIG = {
-    maxAddresses: 10000,  
-    featuresLimit: 5,     
-    batchSize: 10,        
-    maxConcurrentRequests: 2,
+    maxAddresses: 10000,
+    featuresLimit: 5,
+    maxConcurrentRequests: 10,   /*  requests in flight at the same time  */
+    requestsPerSecond: 40,       /*  IGN Géoplateforme limit: 50 requests/s per IP (ratelimit-limit header)  */
     weights: {
         postcodeMatch: 0.4,     
         cityCodeMatch: 0.4,    
         scoreApi: 0.2           
     },
-    apiDelay: 400,       
-    verboseLogs: false,  
+    verboseLogs: false,
     retryAttempts: 2,  
     retryDelay: 1000, 
-    timeout: 30000,    
+    timeout: 10000,      /*  ms per request (average ~250 ms): a hung request is retried instead of delaying the whole file  */
     useFallback: true,   
     preferBatchAPI: true,
   
     rateLimitBackoff: 2000, 
-    maxRateLimitRetries: 1, 
-    adaptiveDelay: true,    
-    futureProofing: true    
+    maxRateLimitRetries: 1,
+    futureProofing: true
 };
+
+/*  Max number of addresses processed by the smart (precision) geocoding, to warn the user about larger files:  */
+export const SMART_GEOCODING_MAX_ADDRESSES = SMART_GEOCODING_CONFIG.maxAddresses;
 
 
 const API_ENDPOINTS = {
@@ -941,10 +943,11 @@ async function geocodeSingleAddress(address, postcode = '', cityCode = '', cityN
         };
     }
     
-    const cleanAddress = address.trim();
-    
-    if (cleanAddress === '' || cleanAddress.length < 3 || 
-        /^[#\d\-\s]+$/.test(cleanAddress) || /^[^\w\s]/.test(cleanAddress)) {
+    /*  Clean leading/trailing quotes before validating; \p{L} accepts accented first letters (Église, Île...)  */
+    const cleanAddress = address.trim().replace(/^['"\s]+|['"\s]+$/g, '');
+
+    if (cleanAddress === '' || cleanAddress.length < 3 ||
+        /^[#\d\-\s]+$/.test(cleanAddress) || /^[^\p{L}\p{N}\s]/u.test(cleanAddress)) {
         
         return {
             latitude: null,
@@ -1048,7 +1051,14 @@ async function geocodeSingleAddress(address, postcode = '', cityCode = '', cityN
                               error.message.includes('getaddrinfo ENOTFOUND');
             
             const isRateLimited = error.response && error.response.status === 429;
-            
+
+            if (isRateLimited && attempt < maxAttempts) {
+                /*  Too many requests: wait (Retry-After if readable, else rateLimitBackoff) and retry  */
+                const retryAfter = Number(error.response.headers?.['retry-after']) * 1000 || SMART_GEOCODING_CONFIG.rateLimitBackoff;
+                await sleep(retryAfter);
+                continue;
+            }
+
             if (isDNSError) {
                 return {
                     latitude: null,
@@ -1106,107 +1116,70 @@ async function geocodeSingleAddress(address, postcode = '', cityCode = '', cityN
 
 
 
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
- * Processes a batch of addresses in parallel with concurrency limitation
- * @param {Array} addressBatch - Batch of addresses to process
- * @param {number} batchIndex - Batch index for progress tracking
- * @param {number} totalBatches - Total number of batches
- * @returns {Array} Geocoding results for the batch
+ * Runs fn on every item with `concurrency` parallel calls, started at most `requestsPerSecond` times per second
+ * @param {Array} items - Items to process
+ * @param {Function} fn - Async function called with each item
+ * @returns {Array} Results in the same order as items
  */
-async function processBatchParallel(addressBatch, batchIndex, totalBatches) {
-    const results = [];
-    let currentDelay = SMART_GEOCODING_CONFIG.apiDelay;
-    // let rateLimitedCount = 0;
-    
-    // Helper function defined outside loop to avoid no-loop-func
-    const processAddressInfo = async (addressInfo) => {
-        const { address, postcode, cityCode, cityName, originalIndex } = addressInfo;
-        
-        if (!address || String(address).trim() === '') {
-            return {
-                originalIndex,
-                result: {
-                    latitude: null,
-                    longitude: null,
-                    result_score: 0,
-                    result_type: '',
-                    result_status: 'empty address',
-                    _postcode: '',
-                    _city: '',
-                    _citycode: '',
-                    _features_count: 0,
-                    _search_query: ''
-                }
-            };
-        }
-        
-        try {
-            const result = await geocodeSingleAddressWithFallback(
-                String(address), 
-                postcode, 
-                cityCode, 
-                cityName
-            );
-            
-            return { originalIndex, result };
-            
-        } catch (error) {
-            return {
-                originalIndex,
-                result: {
-                    latitude: null,
-                    longitude: null,
-                    result_score: 0,
-                    result_type: '',
-                    result_status: 'error',
-                    _postcode: '',
-                    _city: '',
-                    _citycode: '',
-                    _features_count: 0,
-                    _search_query: buildCompleteAddress(String(address), postcode, cityName)
-                }
-            };
+async function runWithRateLimit(items, fn, {concurrency, requestsPerSecond}) {
+    const results = new Array(items.length);
+    const interval = 1000 / requestsPerSecond;
+    let nextIndex = 0;
+    let nextSlot = Date.now();
+    const worker = async () => {
+        while (nextIndex < items.length) {
+            const i = nextIndex++;
+            const slot = Math.max(nextSlot, Date.now());
+            nextSlot = slot + interval;
+            await sleep(slot - Date.now());
+            results[i] = await fn(items[i]);
         }
     };
-    
-    for (let i = 0; i < addressBatch.length; i += SMART_GEOCODING_CONFIG.maxConcurrentRequests) {
-        const batch = addressBatch.slice(i, i + SMART_GEOCODING_CONFIG.maxConcurrentRequests);
-        
-        // Utiliser directement la fonction helper sans référence à currentDelay
-        const promises = batch.map(addressInfo => processAddressInfo(addressInfo));
-        
-        const groupResults = await Promise.all(promises);
-        results.push(...groupResults);
-        
-        const rateLimitedInThisBatch = groupResults.filter(r => 
-            r.result.result_status === 'rate_limited'
-        ).length;
-        
-        // rateLimitedCount += rateLimitedInThisBatch;
-        
-        if (rateLimitedInThisBatch > 0 && SMART_GEOCODING_CONFIG.adaptiveDelay) {
-            currentDelay = Math.min(currentDelay * 2, 2000);
-            // console.log(`${rateLimitedInThisBatch} 429 errors detected - Delay increased to ${currentDelay}ms`);
-        }
-        
-        if (i + SMART_GEOCODING_CONFIG.maxConcurrentRequests < addressBatch.length) {
-            // Capture currentDelay value in a local variable
-            const delayTime = currentDelay;
-            await new Promise(resolve => setTimeout(resolve, delayTime));
-        }
-    }
-    
-    // const percentage = ((batchIndex + 1) / totalBatches * 100).toFixed(1);
-    // const successCount = results.filter(r => r.result.result_status === 'ok').length;
-    
-    // let progressMsg = ` Batch ${batchIndex + 1}/${totalBatches} (${percentage}%) - ${results.length} addresses processed, ${successCount} found`;
-    // if (rateLimitedCount > 0) {
-    //     progressMsg += `, ${rateLimitedCount} rate limitations`;
-    // }
-    // console.log(progressMsg);
-    
+    await Promise.all(Array.from({length: Math.min(concurrency, items.length)}, worker));
     return results;
 }
+
+/**
+ * Geocodes one address (with BAN fallback), never throws
+ * @param {Object} addressInfo - {address, postcode, cityCode, cityName}
+ * @returns {Object} Geocoding result
+ */
+async function geocodeAddressInfo({address, postcode, cityCode, cityName}) {
+    if (!address || String(address).trim() === '') {
+        return {
+            latitude: null,
+            longitude: null,
+            result_score: 0,
+            result_type: '',
+            result_status: 'empty address',
+            _postcode: '',
+            _city: '',
+            _citycode: '',
+            _features_count: 0,
+            _search_query: ''
+        };
+    }
+    try {
+        return await geocodeSingleAddressWithFallback(String(address), postcode, cityCode, cityName);
+    } catch (error) {
+        return {
+            latitude: null,
+            longitude: null,
+            result_score: 0,
+            result_type: '',
+            result_status: 'error',
+            _postcode: '',
+            _city: '',
+            _citycode: '',
+            _features_count: 0,
+            _search_query: buildCompleteAddress(String(address), postcode, cityName)
+        };
+    }
+}
+
 /**
  * Processes a CSV file with optimized smart geocoding (parallel batch processing)
  * @param {File} fileObj - CSV file to process
@@ -1215,45 +1188,16 @@ async function processBatchParallel(addressBatch, batchIndex, totalBatches) {
  */
 async function processFileWithSmartGeocoding(fileObj, options) {
 
-    // CRITICAL: Parse file manually to avoid type conversion like in csvToObj approach
+    /*  Parse the CSV keeping all values as strings (no type inference: postcodes like 01000 keep their leading zero).
+        papaparse handles quoted fields (delimiters, quotes or line breaks inside values), detects the delimiter,
+        and skips empty lines like the table preview (danfo readCSV) does.  */
     const fileContent = await fileObj.text();
-    
-    // Parse CSV manually without type inference (similar to csvToObj approach)
-    const nb_comma = (fileContent.match(/,/g) || []).length;
-    const nb_colon = (fileContent.match(/;/g) || []).length;
-    const nb_tab = (fileContent.match(/\t/g) || []).length;
-    
-    let csvDel;
-    if (nb_colon > 0 && (nb_colon >= nb_comma || nb_tab < nb_colon * 2)) {
-        csvDel = ';';
-    } else if (nb_comma > 0 && (nb_comma >= nb_colon || nb_tab < nb_comma * 2)) {
-        csvDel = ',';
-    } else if (nb_tab > nb_comma && nb_tab > nb_colon) {
-        csvDel = '\t';
-    } else {
-        csvDel = ';';
-    }
+    const parsed = Papa.parse(fileContent, {header: true, dynamicTyping: false, skipEmptyLines: 'greedy'});
+    const columns = parsed.meta.fields;
 
-    const rows = fileContent.split("\n");
-    if (rows.at(-1) === '') {
-        rows.pop();
-    }
-
-    const columns = rows[0].replace('\r', '').split(csvDel);
-
-    // Build data object preserving original format (like csvToObj)
     let csvObj = {};
     columns.forEach((col) => {
-        csvObj[col] = [];
-    });
-
-    rows.slice(1).forEach((row) => {
-        let record = row.replace('\r', '').split(csvDel);
-        columns.forEach((col, ic) => {
-            let value = record[ic] || '';
-            // Keep values as strings without any transformation
-            csvObj[col].push(value);
-        });
+        csvObj[col] = parsed.data.map((row) => row[col] ?? '');
     });
 
     // Create DataFrame from parsed data (this preserves string types)
@@ -1263,32 +1207,18 @@ async function processFileWithSmartGeocoding(fileObj, options) {
     // CRITICAL: Create a deep copy of original DataFrame to preserve exact original data
     let originalDf = df.copy();
     
-    // Detect address, postal code, INSEE code and city columns
-    const addressCol = df.columns.find(col => 
-        col.toLowerCase().includes('adresse') || 
-        col.toLowerCase().includes('address') ||
-        col.toLowerCase().includes('adresse_complete')
-    );
-    
-    const postcodeCol = df.columns.find(col => 
-        col.toLowerCase().includes('code_postal') ||
-        col.toLowerCase().includes('postal') ||
-        col.toLowerCase().includes('cp')
-    );
-    
-    const cityCodeCol = df.columns.find(col => 
-        col.toLowerCase().includes('code_insee') ||
-        col.toLowerCase().includes('insee') ||
-        col.toLowerCase().includes('citycode') ||
-        col.toLowerCase().includes('code_commune')
-    );
-    
-    const cityNameCol = df.columns.find(col => 
-        col.toLowerCase().includes('commune') ||
-        col.toLowerCase().includes('ville') ||
-        col.toLowerCase().includes('city') ||
-        col.toLowerCase().includes('localite')
-    );
+    // Detect address, postal code, INSEE code and city columns:
+    //  first column named exactly like one of the names, else first column containing one of them
+    const findColumn = (names, exclude = () => false) => {
+        const cols = df.columns.filter((col) => !exclude(col.toLowerCase()));
+        return cols.find((col) => names.includes(col.toLowerCase()))
+            || cols.find((col) => names.some((name) => col.toLowerCase().includes(name)));
+    };
+    const addressCol = findColumn(['adresse_complete', 'adresse', 'address']);
+    const postcodeCol = findColumn(['code_postal', 'postcode', 'cp', 'postal']);
+    const cityCodeCol = findColumn(['code_insee', 'insee', 'citycode', 'code_commune']);
+    /*  exclude code columns (e.g. 'code_commune' is the INSEE code, not the city name)  */
+    const cityNameCol = findColumn(['commune', 'ville', 'city', 'localite'], (col) => col.startsWith('code'));
     
     if (!addressCol) {
         throw new Error('No address column found for smart geocoding');
@@ -1329,12 +1259,12 @@ async function processFileWithSmartGeocoding(fileObj, options) {
         cityCode = String(cityCode).trim();
         cityName = String(cityName).trim();
         
-        // Apply French code formatting ONLY to postal code and INSEE code columns (like csvToObj)
-        if (postcodeCol && /postcode|code_postal|cp/i.test(postcodeCol)) {
+        // Restore the leading zeros of French postal and INSEE codes (01000), whatever the detected column name
+        if (postcodeCol) {
             postcode = fixFrenchCode(postcode, 5);
         }
-        
-        if (cityCodeCol && /citycode|code_insee|insee/i.test(cityCodeCol)) {
+
+        if (cityCodeCol) {
             cityCode = fixFrenchCode(cityCode, 5);
         }
         
@@ -1347,37 +1277,25 @@ async function processFileWithSmartGeocoding(fileObj, options) {
         });
     }
     
-    // Divide into batches for parallel processing
-    const batches = [];
-    for (let i = 0; i < addressData.length; i += SMART_GEOCODING_CONFIG.batchSize) {
-        batches.push(addressData.slice(i, i + SMART_GEOCODING_CONFIG.batchSize));
-    }
-    
-    // console.log(`Traitement par lots: ${batches.length} lots de ${SMART_GEOCODING_CONFIG.batchSize} adresses`);
-    // console.log(`Concurrence: ${SMART_GEOCODING_CONFIG.maxConcurrentRequests} requêtes simultanées par lot`);
-    
+    // Geocode each distinct query once (files often repeat the same address), with a rate-limited pool of requests
+    const queryKey = (a) => [a.address, a.postcode, a.cityCode, a.cityName].join('|').toLowerCase();
+    const uniqueQueries = new Map();
+    addressData.forEach((a) => {
+        if (!uniqueQueries.has(queryKey(a))) uniqueQueries.set(queryKey(a), a);
+    });
+
     // const startTime = Date.now();
-    const allResults = [];
-    
-    // Process all batches sequentially (but with internal parallelism)
-    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        const batch = batches[batchIndex];
-        const batchResults = await processBatchParallel(batch, batchIndex, batches.length);
-        allResults.push(...batchResults);
-    }
-    
+    const uniqueResults = await runWithRateLimit([...uniqueQueries.values()], geocodeAddressInfo, {
+        concurrency: SMART_GEOCODING_CONFIG.maxConcurrentRequests,
+        requestsPerSecond: SMART_GEOCODING_CONFIG.requestsPerSecond,
+    });
     // const endTime = Date.now();
     // const duration = ((endTime - startTime) / 1000).toFixed(1);
-    
-    // Organize results according to original order
-    const results = new Array(maxToProcess);
-    let foundCount = 0;
-    
-    allResults.forEach(({ originalIndex, result }) => {
-        results[originalIndex] = result;
-        if (result.result_status === 'ok') foundCount++;
-    });
-    
+
+    // Results in the original row order (duplicates get the result of their query)
+    const resultByKey = new Map([...uniqueQueries.keys()].map((key, i) => [key, uniqueResults[i]]));
+    const results = addressData.map((a) => resultByKey.get(queryKey(a)));
+
     for (let i = maxToProcess; i < totalRows; i++) {
         results.push({
             latitude: null,
