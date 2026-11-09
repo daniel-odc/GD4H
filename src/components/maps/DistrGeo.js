@@ -25,26 +25,8 @@ import {MkDoc} from "../doc/MkDoc";
 import read_me from "../../i18n/fr/read_me_distrgeo.md";  /*  Map tab instructions  */
 
 
-/*  GIS layers (GeoJSON) stored in a cloud bucket (folder URL set in .env.local), loaded once and kept in memory:  */
-const GEODATA_URL = (process.env.REACT_APP_BUCKET_GEODATA || '').replace(/\/+$/, '');
-const GEO_LAYERS = ['regions', 'departements', 'communes'];
-const emptyGeoLayers = {loaded: false, error: null, regions: {features: []}, departements: {features: []}, communes: {features: []}};
-let geoLayersPromise = null;
-const loadGeoLayers = () => {
-    if (!GEODATA_URL) return Promise.reject(new Error('REACT_APP_BUCKET_GEODATA non défini dans .env.local'));
-    if (!geoLayersPromise) {
-        geoLayersPromise = Promise.all(GEO_LAYERS.map(async (name) => {
-            const res = await fetch(`${GEODATA_URL}/${name}.json`);
-            if (!res.ok) throw new Error(`${name}.json: HTTP ${res.status}`);
-            return res.json();
-        })).then(([regions, departements, communes]) => ({loaded: true, error: null, regions, departements, communes}))
-            .catch((error) => {
-                geoLayersPromise = null;    /*  retry on next mount */
-                throw error;
-            });
-    }
-    return geoLayersPromise;
-};
+/*  GIS layers (GeoJSON) loaded from the cloud bucket:  */
+import {loadGeoLayers, emptyGeoLayers} from "../../generic_js/geoLayers";
 
 import Messages from './Message'; // Import the Messages component
 import './popup.css'; // Import the CSS file for the popup

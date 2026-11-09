@@ -11,6 +11,7 @@ import read_me from "../i18n/fr/read_me_home_page.md";  /*  Pages instructions  
 /*  Generic project libs:   */
 import {loadDataframe, getFileExtension, detectEncoding, toUtf8File, ENCODINGS} from "../generic_js/generic";  //, startTime, endTime
 import {formatDfColumnNames} from "../generic_js/fieldsDetection";
+import {loadGeoLayers} from "../generic_js/geoLayers";
 import {MkDoc} from "../components/doc/MkDoc";
 import TableOdc from "../components/layout/TableOdc";
 
@@ -47,6 +48,12 @@ export default function HomePage() {
     const [encodingInfo, setEncodingInfo] = useState(null);  /*  detected encoding: {encoding, certain}  */
     const [fileUtf8, setFileUtf8] = useState(null);          /*  selected file converted to UTF-8, passed to the next pages  */
     const navigate = useNavigate();
+
+    /*  Prefetch the GIS layers used on the data check page, while the user selects a file
+        (errors are shown on the data check page, which retries the loading):    */
+    useEffect(() => {
+        loadGeoLayers().catch((error) => console.warn('Préchargement des couches géographiques impossible: ', error.message));
+    }, []);
 
     /**
      *  File loading function
