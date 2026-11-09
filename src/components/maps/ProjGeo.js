@@ -15,6 +15,7 @@
  */
 import React, {useEffect, useState} from "react";
 import {Button, Col, Layout, Row, Select, Spin} from "antd";
+import {DownloadOutlined} from '@ant-design/icons';
 
 import {toCSV, toExcel} from "danfojs";
 import proj4 from 'proj4';
@@ -267,9 +268,15 @@ export default function ProjGeo(props) {
             // setDfTbl(dfCol);
 
             let detectedProjection = null;
-            
+
+            /*  Source projection given by the page (coordinates from the address conversion are always WGS84)  */
+            if (props.sourceEPSG) {
+                detectedProjection = props.sourceEPSG;
+                setCurrentEPSG(detectedProjection);
+            }
+
             // Detect source projection from column names
-            if (df.columns.includes('Projection')) {
+            if (!detectedProjection && df.columns.includes('Projection')) {
                 const projectionValues = new Set(df['Projection'].values);
                 if (projectionValues.size === 1) {
                     detectedProjection = Array.from(projectionValues)[0];
@@ -628,11 +635,17 @@ export default function ProjGeo(props) {
                 {isExtractionVisible && (
                     <Row justify='start' align="middle" style={{ marginBottom: 15 }}>
                         <Col>
-                            <Button 
+                            {/*<Button */}
+                            {/*    style={{ marginLeft: 15, padding: "15px 10px" }}*/}
+                            {/*    onClick={exportResults}*/}
+                            {/*>*/}
+                            {/*    Extraire les données*/}
+                            {/*</Button>*/}
+                            {/* -------------------- Export button ------------------------------ */}
+                            <Button
                                 style={{ marginLeft: 15, padding: "15px 10px" }}
-                                onClick={exportResults}
-                            >
-                                Extraire les données
+                                onClick={exportResults}>
+                                <DownloadOutlined/> Exporter les données
                             </Button>
                         </Col>
                     </Row>
