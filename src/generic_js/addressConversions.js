@@ -1479,6 +1479,7 @@ export const addressToLatLng = async (fileObj, options) => {
 
     const resultColumns = options.resultColumns? options.resultColumns: API_COL;
     const colRename = options.colRename? options.colRename: API_RENAME;
+    const useSmartGeocoding = options.useSmartGeocoding? true: false;
 
     if (fileObj.size === 0) {
         throw new Error('File is empty');
@@ -1488,7 +1489,7 @@ export const addressToLatLng = async (fileObj, options) => {
         console.warn('Warning: file does not seem to be a CSV');
     }
 
-    if (options && options.useSmartGeocoding) {
+    if (useSmartGeocoding) {
         // console.log(' Smart geocoding mode enabled');
         return await processFileWithSmartGeocoding(fileObj, { ...options, colRename });
     }
