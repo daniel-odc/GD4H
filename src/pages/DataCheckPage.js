@@ -22,35 +22,6 @@ const gutter = [16, 16]; /* horizontal and vertical space between grid elements 
 /*  For tests only  */
 // const listColCoordDef = [['longitude', 'latitude'], ['x', 'y']];    /*  should be returned by TablePage */
 
-/*  Tab items:  */
-const tabItems = [
-  {
-    key: 'coord',
-    label: `Distribution des Objets`,
-    children: `Content TO DO 1`,
-  },
-    {
-    key: 'addr',
-    label: `Conversions géographiques`,
-    children: `Content TO DO 2`,
-  },
-  {
-    key: 'proj',
-    label: `Projection des coordonnées`,
-    children: `Content TO DO 3`,  
-  }
-  // {
-  //   key: '2',
-  //   label: `Distribution temporelle`,
-  //   children: `Content TO DO 2`,
-  // },
-  // {
-  //   key: '3',
-  //   label: `Erreurs possibles`,
-  //   children: `Content TO DO 3`,
-  // },
-];
-
 export default function DataCheckPage() {
     const location = useLocation();
     // const navigate = useNavigate();
@@ -59,52 +30,83 @@ export default function DataCheckPage() {
     const dataCheck = location.state && location.state.dataCheck? location.state.dataCheck: null;
     const fileObj = location.state && location.state.fileObj ? location.state.fileObj : null;
     const [activeTab, setActiveTab] = useState(null);  /*  landing tab */
-    const [, setListColCoord] = useState(null);
-    const [, setListColAddr] = useState(null);
-   
+    const [dfData, setDfData] = useState(null);        /*  data of the file  */
+    const [listColCoord, setListColCoord] = useState(null);
+    const [listColAddr, setListColAddr] = useState(null);
+    const [geocoded, setGeocoded] = useState(null);    /*  {df, colCoord} once the addresses are converted  */
+
     /*  Convert df to Dataframe and get columns info */
     useEffect(() => {
         // let st = startTime();   /*  only for tests: for measuring computation time  */
         (async () => {
-            df = await objToDataframe(df);
+            const dfTmp = await objToDataframe(df);
             // console.log('df in check page: ', df);
 
             /*  Build list coord    */
             const listCoordTmp = await buildCoordCol(dataCheck);
             // endTime(st, 'coordinates array building');
-            setListColCoord(listCoordTmp);
 
             /*  Build list address */
             const listAddrTmp = await buildAddrCol(dataCheck);
+
+            setDfData(dfTmp);
+            setListColCoord(listCoordTmp);
             setListColAddr(listAddrTmp);
 
             /*  Select active tab:  */
             setActiveTab((listCoordTmp[0].length>1)? 'coord': 'addr'); /* if coordinates, go to map, otherwise go to conversion   */
-
-            /*  Update tab items with data  */
-            /*      map     */
-            tabItems[0].children = <DistrGeo
-                df={df}
-                listColCoord={listCoordTmp}
-            />;
-            /*      address to lat lng  */
-            tabItems[1].children = <OpGeo
-                fileObj={fileObj}
-                df={df}
-                listColAddr={listAddrTmp}
-                listColCoord={listCoordTmp}
-            />;
-
-            /*    projection  */
-            tabItems[2].children = <ProjGeo
-                fileObj={fileObj}
-                df={df}
-                listColAddr={listAddrTmp}
-                listColCoord={listCoordTmp}
-            />; // 
-
             })();
     }, []);
+
+    /*  Map: coordinates of the file if any, otherwise the ones from the address conversion  */
+    const fileHasCoord = listColCoord && listColCoord[0].length > 1;
+    const showGeocoded = !fileHasCoord && geocoded;
+
+    /*  Tab items:  */
+    const tabItems = dfData ? [
+        {
+            key: 'coord',
+            label: `Distribution des Objets`,
+            children: <DistrGeo
+                key={showGeocoded ? 'geocoded' : 'file'}   /*  new key: the map restarts with the geocoded data  */
+                df={showGeocoded ? geocoded.df : dfData}
+                listColCoord={showGeocoded ? [geocoded.colCoord] : listColCoord}
+            />,
+        },
+        {
+            key: 'addr',
+            label: `Conversions géographiques`,
+            children: <OpGeo
+                fileObj={fileObj}
+                df={dfData}
+                listColAddr={listColAddr}
+                listColCoord={listColCoord}
+                onGeocoded={(dfGeo, colCoord) => setGeocoded({df: dfGeo, colCoord})}
+            />,
+        },
+        {
+            key: 'proj',
+            label: `Projection des coordonnées`,
+            children: <ProjGeo
+                key={showGeocoded ? 'geocoded' : 'file'}   /*  new key: the projection restarts with the geocoded data  */
+                fileObj={fileObj}
+                df={showGeocoded ? geocoded.df : dfData}
+                listColAddr={listColAddr}
+                listColCoord={showGeocoded ? [geocoded.colCoord] : listColCoord}
+                sourceEPSG={showGeocoded ? 'EPSG:4326' : undefined}   /*  API coordinates are WGS84  */
+            />,
+        },
+        // {
+        //   key: '2',
+        //   label: `Distribution temporelle`,
+        //   children: `Content TO DO 2`,
+        // },
+        // {
+        //   key: '3',
+        //   label: `Erreurs possibles`,
+        //   children: `Content TO DO 3`,
+        // },
+    ] : [];
 
     return (
         <Layout style={layoutStyle}>

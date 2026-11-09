@@ -1,3 +1,9 @@
+# 09/11/2026
+- Updated `Analysis tab` for "Vérification spatiale" after lat, lng extraction
+- Updated `Analysis tab` so we can see the addresses on the map once converted to `lat, lng`
+- Bugs correction on precise geolocation + code optimisation
+- Updated geo data download so it downloads on Home Page while the user is analysing the file
+
 # 04/11/2026
 - Managed files encoding on home page
 

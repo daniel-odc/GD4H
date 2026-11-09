@@ -12,11 +12,11 @@
         />
 * -------------------------------------------------- */
 
-import React, {useState, useEffect} from "react";
+import React, {useState, useEffect, useMemo} from "react";
 import {Alert, Row, Col, Layout, Button, Space, Slider, InputNumber, Radio, Select, Checkbox} from "antd";
-import {MapContainer, TileLayer, Marker, Polygon, Tooltip, GeoJSON} from 'react-leaflet';
+import {MapContainer, TileLayer, Marker, Polygon, Tooltip, GeoJSON, useMap} from 'react-leaflet';
 import './leaflet.css';
-import { booleanPointInPolygon } from '@turf/turf';
+import { booleanPointInPolygon, bbox } from '@turf/turf';
 
 
 /*  Project components:  */
@@ -148,6 +148,24 @@ const getMonthName = (monthNumber) => {
     return monthNames[monthNumber - 1];
 };
 
+/*  Feature of an indexed layer ({f, bb} list) containing the point [lng, lat]:
+    the bounding boxes avoid testing every polygon  */
+const locate = (indexed, pt) => indexed.find(({f, bb}) =>
+    pt[0] >= bb[0] && pt[0] <= bb[2] && pt[1] >= bb[1] && pt[1] <= bb[3] && booleanPointInPolygon(pt, f.geometry)
+)?.f;
+
+/*  Leaflet measures its container once: re-measure when it is resized or shown
+    (e.g. map created in a hidden tab, after the address conversion)  */
+const MapResizer = () => {
+    const map = useMap();
+    useEffect(() => {
+        const observer = new ResizeObserver(() => map.invalidateSize());
+        observer.observe(map.getContainer());
+        return () => observer.disconnect();
+    }, [map]);
+    return null;
+};
+
 export default function DistrGeo(props) {
     let df = props.df ? props.df : null;
     const listColCoord = props.listColCoord ? props.listColCoord : listColCoordDef;    /*  [['longitude', 'latitude'], [other x, y]]      */
@@ -234,6 +252,7 @@ export default function DistrGeo(props) {
           "r�gion": "région",
           "d�partement": "département",                         /* cette fonction permet de unifier les cles */
           "code insee": "codeInsee",
+          "code_insee": "codeInsee",
           "longitude wgs84": "longitude",
           "latitude wgs84": "latitude",
         };
@@ -255,8 +274,8 @@ export default function DistrGeo(props) {
             obj[colName] = row[index];
           });
       
-          // Use "code etablissement" as a unique key to check for duplicates
-          const key = obj['code etablissement'];
+          // Use "code etablissement" as a unique key to check for duplicates (row index if there is no such column)
+          const key = lCol.includes('code etablissement') ? obj['code etablissement'] : `row_${Object.keys(uniqueEntries).length}`;
           if (!uniqueEntries[key]) {
             uniqueEntries[key] = obj;
           }
@@ -291,17 +310,38 @@ export default function DistrGeo(props) {
             return '';
         }
         const norm = str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-        const replacedStr = norm.replace(/-/g, ' ');
+        const replacedStr = norm.replace(/-/g, ' ').replace(/['’"]/g, '');
         const capitalizedStr = replacedStr.toUpperCase();
         return capitalizedStr;
     }
 
+    /*  INSEE codes as 5-character strings, whether read as text or as numbers (01053 / 1053)  */
+    const insee5 = (code) => String(code ?? '').trim().padStart(5, '0');
+
+    /*  Value given in the file for a row (column present and not empty)  */
+    const hasValue = (val) => val !== undefined && val !== null && String(val).trim() !== '';
+
+    /*  Lookup tables built once per loaded layers: by name / code, and features with their bounding boxes  */
+    const geoIndex = useMemo(() => {
+        if (!geoLayers.loaded) return null;
+        const withBbox = (features) => features.map((f) => ({f, bb: bbox(f)}));
+        return {
+            regions: withBbox(regions.features),
+            departements: withBbox(departements.features),
+            communes: withBbox(communes.features),
+            regionByName: new Map(regions.features.map((f) => [maj(f.properties.nom), f])),
+            deptByName: new Map(departements.features.map((f) => [maj(f.properties.nom), f])),
+            deptByCode: new Map(departements.features.map((f) => [String(f.properties.code), f])),
+            communeByCode: new Map(communes.features.map((f) => [insee5(f.properties.code), f])),
+        };
+    }, [geoLayers]);
+
     const transformAndExtract = (input) => {
         // Convert the input to a string
-        const str = input.toString();
+        const str = String(input ?? '').trim().padStart(5, '0');
         
         // Extract the first two characters
-        const result = str.substring(0, 2);
+        const result = str.startsWith('97') ? str.substring(0, 3) : str.substring(0, 2);   /*  overseas: 971...976  */
         
 
         return result;
@@ -317,34 +357,48 @@ export default function DistrGeo(props) {
     const data = createJson(df);  /*without duplicates*/
     const data2 = createJson2(df);  /* with duplicates */
 
+    /*  Point [lng, lat] of an item, read from the coordinate columns shown on the map (null if not valid numbers)  */
+    const keyX = funct_rename(colX);
+    const keyY = funct_rename(colY);
+    const itemPoint = (item) => {
+        const x = parseFloat(item[keyX]);
+        const y = parseFloat(item[keyY]);
+        return (isNaN(x) || isNaN(y)) ? null : [x, y];
+    };
+
 
     // console.log("les données ",data)
     // console.log("les données2 : ",data2)
 
     const handleVerification = () => {
+        if (!geoIndex) return;
         const messages = [];
     
         data.forEach((item, i) => {
-            // Retrieving polygons corresponding to the marker
-            const regionPolygon = regions.features.find(region => maj(region.properties.nom) === maj(item.region));
-            const departementPolygon = departements.features.find(dept => maj(dept.properties.nom) === maj(item.departement)) && departements.features.find(dept => (dept.properties.code) === transformAndExtract(item.codeInsee));
-            const communePolygon = communes.features.find(comm => parseInt(comm.properties.code) === item.codeInsee);
-    
-            const markerInsideRegion = regionPolygon ? booleanPointInPolygon([item.longitude, item.latitude], regionPolygon.geometry) : false;
-            const markerInsideDepartement = departementPolygon ? booleanPointInPolygon([item.longitude, item.latitude], departementPolygon.geometry) : false;
-            const markerInsideCommune = communePolygon ? booleanPointInPolygon([item.longitude, item.latitude], communePolygon.geometry) : false;
-    
-            if (!markerInsideRegion) {
-                const correctRegion = regions.features.find(region => booleanPointInPolygon([item.longitude, item.latitude], region.geometry));
-                messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${item.latitude}, ${item.longitude}) est indiquée dans la région ${correctRegion ? correctRegion.properties.nom : 'région inconnue'} au lieu de ${item.region}.`);
+            const pt = itemPoint(item);
+            if (!pt) return;    /*  no coordinates for this row */
+
+            /*  Each level is checked only if the file gives it (région / département / code INSEE)  */
+            if (hasValue(item.region)) {
+                const regionPolygon = geoIndex.regionByName.get(maj(item.region));
+                if (!(regionPolygon && booleanPointInPolygon(pt, regionPolygon.geometry))) {
+                    const correctRegion = locate(geoIndex.regions, pt);
+                    messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${pt[1]}, ${pt[0]}) est indiquée dans la région ${correctRegion ? correctRegion.properties.nom : 'région inconnue'} au lieu de ${item.region}.`);
+                }
             }
-            if (!markerInsideDepartement) {
-                const correctDepartement = departements.features.find(dept => booleanPointInPolygon([item.longitude, item.latitude], dept.geometry));
-                messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${item.latitude}, ${item.longitude}) est indiquée dans le département ${correctDepartement ? correctDepartement.properties.nom : 'département inconnu'} au lieu de ${item.departement}.`);
+            if (hasValue(item.departement)) {
+                const departementPolygon = geoIndex.deptByName.get(maj(item.departement));
+                if (!(departementPolygon && booleanPointInPolygon(pt, departementPolygon.geometry))) {
+                    const correctDepartement = locate(geoIndex.departements, pt);
+                    messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${pt[1]}, ${pt[0]}) est indiquée dans le département ${correctDepartement ? correctDepartement.properties.nom : 'département inconnu'} au lieu de ${item.departement}.`);
+                }
             }
-            if (!markerInsideCommune) {
-                const correctCommune = communes.features.find(comm => booleanPointInPolygon([item.longitude, item.latitude], comm.geometry));
-                messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${item.latitude}, ${item.longitude}) est indiquée dans la commune ${correctCommune ? correctCommune.properties.nom : 'commune inconnue'} au lieu de ${item.commune}.`);
+            if (hasValue(item.codeInsee)) {
+                const communePolygon = geoIndex.communeByCode.get(insee5(item.codeInsee));
+                if (!(communePolygon && booleanPointInPolygon(pt, communePolygon.geometry))) {
+                    const correctCommune = locate(geoIndex.communes, pt);
+                    messages.push(`Ligne ${i} - Le marqueur de la commune de ${item.commune} (${pt[1]}, ${pt[0]}) est indiquée dans la commune ${correctCommune ? correctCommune.properties.nom : 'commune inconnue'} au lieu de ${item.commune}.`);
+                }
             }
         });
     
@@ -544,7 +598,7 @@ export default function DistrGeo(props) {
 
 
     useEffect(() => {
-        if (!geoLayers.loaded) return;
+        if (!geoIndex) return;
         // Initialisation des compteurs
         const regionCountsInit = {};
         const departementCountsInit = {};
@@ -559,10 +613,12 @@ export default function DistrGeo(props) {
     
         // Comptage des marqueurs dans chaque région et département
         data.forEach(item => {
-            const regionPolygon = regions.features.find(region => maj(region.properties.nom) === maj(item.region));
-            const departementPolygon = departements.features.find(dept => maj(dept.properties.nom) === maj(item.departement)) && departements.features.find(dept => (dept.properties.code) === transformAndExtract(item.codeInsee));
+            const pt = itemPoint(item);
+            if (!pt) return;    /*  no coordinates for this row */
+            const regionPolygon = hasValue(item.region) && geoIndex.regionByName.get(maj(item.region));
+            const departementPolygon = hasValue(item.departement) && geoIndex.deptByName.get(maj(item.departement)) && geoIndex.deptByCode.get(transformAndExtract(item.codeInsee));
     
-            if (regionPolygon && booleanPointInPolygon([item.longitude, item.latitude], regionPolygon.geometry)) {
+            if (regionPolygon && booleanPointInPolygon(pt, regionPolygon.geometry)) {
                 if (regionCountsInit.hasOwnProperty(item.region)) {
                     regionCountsInit[item.region]++;
                 } else {
@@ -570,7 +626,7 @@ export default function DistrGeo(props) {
                 }
             }
     
-            if (departementPolygon && booleanPointInPolygon([item.longitude, item.latitude], departementPolygon.geometry)) {
+            if (departementPolygon && booleanPointInPolygon(pt, departementPolygon.geometry)) {
                 if (departementCountsInit.hasOwnProperty(item.departement)) {
                     departementCountsInit[item.departement]++;
                 } else {
@@ -636,6 +692,7 @@ export default function DistrGeo(props) {
                     scrollWheelZoom={true}
                     zoomControl={false}
                 >
+                    <MapResizer/>
                     <TileLayer
                         attribution={tileAttribution}
                         url={tileUrl}

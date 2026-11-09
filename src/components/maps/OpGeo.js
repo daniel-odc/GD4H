@@ -78,6 +78,16 @@ RENDER_FUNC[F_API_STATUS] = (val) => {
     return <span style={{color: 'blue'}}>{val}</span>
 }
 
+/*  Returns a copy of the df with the API lat / lng as numbers (null when not found), for the map  */
+const numericLatLng = (df) => {
+    const dfNum = df.copy();
+    const toNum = (val) => (val === null || val === undefined || val === '' || isNaN(Number(val))) ? null : Number(val);
+    [F_API_LAT, F_API_LNG].forEach((col) => {
+        if (dfNum.columns.includes(col)) dfNum.addColumn(col, dfNum[col].values.map(toNum), {inplace: true});
+    });
+    return dfNum;
+};
+
 
 
 /*  Export format:  */
@@ -180,6 +190,9 @@ export default function OpGeo(props) {
                 /*  Build full df TO DO */
                 // console.log('REPLACE FULL DF TO DO');
                 setDfExport(dfLatLng);
+
+                /*  Share the geocoded coordinates with the map tab  */
+                props.onGeocoded?.(numericLatLng(dfLatLng), [F_API_LNG, F_API_LAT]);
 
                 /*  Get the columns of coordinates in case we want to compute the distance between them */
                 if (listColCoord) {
