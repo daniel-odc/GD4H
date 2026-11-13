@@ -1,3 +1,6 @@
+# 13/11/2026
+- Hide "Precise geocoding" checkbox
+
 # 09/11/2026
 - Updated `Analysis tab` for "Vérification spatiale" after lat, lng extraction
 - Updated `Analysis tab` so we can see the addresses on the map once converted to `lat, lng`

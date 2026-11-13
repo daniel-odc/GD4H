@@ -1,9 +1,8 @@
 # Code pre-migration vers `Gitlab` INERIS
 
 TO DO
-- compare response times json hosting solutions
+- Update link from App top left logo (+update logo?)
 - Update Gitlab GD4H to redirect to [INERIS Gitlab](https://julie.ineris.fr/dsi/dataviz/applications/qualigeoenvi.git)
-- Precise geocoding implementation
 - change bug tracker link
 - change `A propos` page
 - see if bug trackers are public on INERIS gitlab
