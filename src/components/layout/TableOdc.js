@@ -60,13 +60,14 @@ export default function TableOdc(props) {
 
     return (
         <Table
-                        columns={col}
-                        dataSource={data}
-                        loading={loading}
-                        rowKey={rowKey}
-                        size="small"
-                        scroll={tableOptions.scroll}
-                        pagination={pagination}
-                    />
+            style={{width: '100%'}}
+            columns={col}
+            dataSource={data}
+            loading={loading}
+            rowKey={rowKey}
+            size="small"
+            scroll={tableOptions.scroll}
+            pagination={pagination}
+        />
     )
 }
