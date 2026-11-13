@@ -111,7 +111,7 @@ export default function OpGeo(props) {
     const [loadingApi, setLoadingApi] = useState(false);
     const [nbApiCall, setNbApiCall] = useState(0);
     const [apiWarning, setApiWarning] = useState(null);
-    const [useSmartGeocoding, setUseSmartGeocoding] = useState(false);  /*  Nouveau: mode géocodage intelligent  */
+    const [useSmartGeocoding, setUseSmartGeocoding] = useState(true);  /*  Nouveau: mode géocodage intelligent  */
     const colCoordRef = useRef([]); /*  inde xof columns of coordinates after the api is called: [colX1, colY1, colX2, colY2] (for comparison between input coordinates and addresses)    */
 
     const existCoord = (listColCoord[0].length > 1) ? true : false;
@@ -283,16 +283,16 @@ export default function OpGeo(props) {
                     </Col>
 
                     <Col>
-                        <div style={{marginBottom: 10}}>
-                            <Tooltip title="Le géocodage de précision utilise l'API de recherche individuelle pour une meilleure précision basée sur les codes postaux et le code INSEE si disponible. Plus lent mais plus complet dans le cas de codes postaux / codes INSEE manquants.">
-                                <Checkbox
-                                    checked={useSmartGeocoding} 
-                                    onChange={(e) => setUseSmartGeocoding(e.target.checked)}
-                                >
-                                    <AimOutlined /> Géocodage de précision
-                                </Checkbox>
-                            </Tooltip>
-                        </div>
+                        {/*<div style={{marginBottom: 10}}>*/}
+                        {/*    <Tooltip title="Le géocodage de précision utilise l'API de recherche individuelle pour une meilleure précision basée sur les codes postaux et le code INSEE si disponible. Plus lent mais plus complet dans le cas de codes postaux / codes INSEE manquants.">*/}
+                                {/*<Checkbox*/}
+                                {/*    checked={useSmartGeocoding} */}
+                                {/*    onChange={(e) => setUseSmartGeocoding(e.target.checked)}*/}
+                                {/*>*/}
+                                {/*    <AimOutlined /> Géocodage de précision*/}
+                                {/*</Checkbox>*/}
+                        {/*    </Tooltip>*/}
+                        {/*</div>*/}
 
                         {checkBeforeApiCall &&
                             <Popconfirm
