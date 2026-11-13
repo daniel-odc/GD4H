@@ -5,6 +5,9 @@
   /*width: 300px;*/
   height: 90vh;
   max-height: 600px;
-  max-width: 900px;
-    /*overflow: hidden;*/
+  max-width: 100%; /*900px*/
+  width: 100%;          /* needed together with auto margins (see below) */
+  margin-left: auto;    /* centers the map horizontally */
+  margin-right: auto;
+  /*overflow: hidden;*/
 }
