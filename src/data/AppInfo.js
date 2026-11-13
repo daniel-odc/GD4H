@@ -8,7 +8,7 @@ import {
 import logo from '../img/logo.png';
 
 export const Links = {
-    website: "https://challenge.gd4h.ecologie.gouv.fr/defi/?topic=28",
+    website: "https://gd4h.ecologie.gouv.fr/defis/799",
     home: "/",
     about: "/about",
     table: '/table',  /* where headers are checked  */
@@ -21,8 +21,8 @@ export const Links = {
 export const AppInfo = {
     name: "QualiGeoEnvi",
     version: {
-        num: "1.3",
-        date: '03/11/2026',
+        num: "1.4",
+        date: '13/11/2026',
     },
     language: 'fr',
     url: process.env.REACT_APP_BASE_APP_URL,
